@@ -2,7 +2,7 @@
   "name": "routerplex-models",
   "displayName": "RouterPlex Models",
   "description": "Use RouterPlex models in VS Code Chat and configure the Codex extension with one API key.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "routerplex",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
