@@ -1,0 +1,140 @@
+{
+  "name": "routerplex-models",
+  "displayName": "RouterPlex Models",
+  "description": "Use RouterPlex models in VS Code Chat and configure the Codex extension with one API key.",
+  "version": "0.1.0",
+  "publisher": "routerplex",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MaridWSH/routerplex-vscode.git"
+  },
+  "homepage": "https://github.com/MaridWSH/routerplex-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/MaridWSH/routerplex-vscode/issues"
+  },
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "AI",
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "routerplex",
+    "codex",
+    "openai",
+    "claude",
+    "gemini",
+    "language models"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "files": [
+    "dist/**",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "routerplex",
+        "displayName": "RouterPlex",
+        "managementCommand": "routerplex.manageConnection"
+      }
+    ],
+    "commands": [
+      {
+        "command": "routerplex.setup",
+        "title": "RouterPlex: Set Up VS Code and Codex",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.manageConnection",
+        "title": "RouterPlex: Manage Connection",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.configureApiKey",
+        "title": "RouterPlex: Configure API Key",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.configureCodex",
+        "title": "RouterPlex: Configure Codex",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.testConnection",
+        "title": "RouterPlex: Test Connection",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.refreshModels",
+        "title": "RouterPlex: Refresh Models",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.openCodexConfig",
+        "title": "RouterPlex: Open Codex Configuration",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.removeConfiguration",
+        "title": "RouterPlex: Remove Configuration",
+        "category": "RouterPlex"
+      },
+      {
+        "command": "routerplex.openDashboard",
+        "title": "RouterPlex: Open Dashboard",
+        "category": "RouterPlex"
+      }
+    ],
+    "configuration": {
+      "title": "RouterPlex",
+      "properties": {
+        "routerplex.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.routerplex.com/v1",
+          "scope": "machine",
+          "description": "RouterPlex API base URL used for inference and Codex configuration."
+        },
+        "routerplex.catalogUrl": {
+          "type": "string",
+          "default": "https://routerplex.com/api/models",
+          "scope": "machine",
+          "description": "Public RouterPlex model catalog URL."
+        },
+        "routerplex.codexHome": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Optional Codex home directory. Leave empty to use CODEX_HOME or ~/.codex."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "compile": "node scripts/esbuild.mjs",
+    "watch": "node scripts/esbuild.mjs --watch",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/**/*.test.ts",
+    "package": "npm run compile && vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "smol-toml": "^1.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.105.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0"
+  }
+}
