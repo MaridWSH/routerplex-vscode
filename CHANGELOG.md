@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2
+
+- Refresh the RouterPlex model catalog automatically every five minutes and when VS Code regains focus.
+- Keep the last known model catalog available during temporary refresh failures.
+- Check GitHub Releases for extension updates, install matching VSIX assets automatically, and prompt to reload.
+- Add configurable model-refresh and extension-update intervals.
+
 ## 0.1.1
 
 - Configure Codex with `env_key = "ROUTERPLEX_API_KEY"`.

@@ -2,7 +2,7 @@
   "name": "routerplex-models",
   "displayName": "RouterPlex Models",
   "description": "Use RouterPlex models in VS Code Chat and configure the Codex extension with one API key.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "routerplex",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -81,6 +81,11 @@
         "category": "RouterPlex"
       },
       {
+        "command": "routerplex.checkForUpdates",
+        "title": "RouterPlex: Check for Updates",
+        "category": "RouterPlex"
+      },
+      {
         "command": "routerplex.openCodexConfig",
         "title": "RouterPlex: Open Codex Configuration",
         "category": "RouterPlex"
@@ -122,6 +127,28 @@
           "default": "",
           "scope": "machine",
           "description": "Optional shell profile used to export ROUTERPLEX_API_KEY. Leave empty to detect bash, zsh, fish, or ~/.profile."
+        },
+        "routerplex.modelRefreshIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 1440,
+          "scope": "machine",
+          "description": "Minutes between automatic RouterPlex model catalog refreshes."
+        },
+        "routerplex.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "description": "Automatically install newer RouterPlex Models VSIX releases from GitHub and prompt to reload VS Code."
+        },
+        "routerplex.updateCheckIntervalHours": {
+          "type": "number",
+          "default": 6,
+          "minimum": 1,
+          "maximum": 168,
+          "scope": "machine",
+          "description": "Hours between automatic checks for RouterPlex Models GitHub releases."
         }
       }
     }

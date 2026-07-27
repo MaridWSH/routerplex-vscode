@@ -12,6 +12,9 @@ import {
 import { CredentialManager } from "./credentials.js";
 import { fetchModels, modelPriceDetail, type RouterPlexModel } from "./models.js";
 import { RouterPlexLanguageModelProvider } from "./provider.js";
+import { ExtensionUpdateService } from "./updater.js";
+
+const DEFAULT_MODEL_REFRESH_INTERVAL_MINUTES = 5;
 
 interface ModelQuickPickItem extends vscode.QuickPickItem {
   model: RouterPlexModel;
@@ -22,9 +25,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const credentials = new CredentialManager(context, () => provider.refresh());
   await credentials.restoreEnvironment();
   provider = new RouterPlexLanguageModelProvider(credentials);
+  const updater = new ExtensionUpdateService(context);
 
   context.subscriptions.push(
     provider,
+    updater,
     vscode.lm.registerLanguageModelChatProvider(ROUTERPLEX_VENDOR, provider),
     vscode.commands.registerCommand("routerplex.setup", () => runCommand(() => setup(context, credentials, provider))),
     vscode.commands.registerCommand("routerplex.manageConnection", () =>
@@ -50,10 +55,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ),
     vscode.commands.registerCommand("routerplex.refreshModels", () =>
       runCommand(async () => {
-        provider.refresh();
-        vscode.window.showInformationMessage("RouterPlex model catalog refreshed.");
+        const changed = await provider.refreshFromCatalog(true);
+        vscode.window.showInformationMessage(
+          changed ? "RouterPlex model catalog updated." : "RouterPlex model catalog is already current.",
+        );
       }),
     ),
+    vscode.commands.registerCommand("routerplex.checkForUpdates", () => runCommand(() => updater.check(true))),
     vscode.commands.registerCommand("routerplex.openCodexConfig", () => runCommand(openCodexConfiguration)),
     vscode.commands.registerCommand("routerplex.removeConfiguration", () =>
       runCommand(() => removeConfiguration(context, credentials, provider)),
@@ -61,7 +69,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("routerplex.openDashboard", () =>
       vscode.env.openExternal(vscode.Uri.parse("https://routerplex.com/dashboard")),
     ),
+    startCatalogRefresh(provider),
   );
+  updater.start();
+}
+
+function startCatalogRefresh(provider: RouterPlexLanguageModelProvider): vscode.Disposable {
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  const refresh = (force: boolean) => {
+    void provider.refreshFromCatalog(force).catch(() => undefined);
+  };
+  const schedule = () => {
+    if (timer) clearInterval(timer);
+    const configured = vscode.workspace
+      .getConfiguration("routerplex")
+      .get<number>("modelRefreshIntervalMinutes", DEFAULT_MODEL_REFRESH_INTERVAL_MINUTES);
+    const interval = Math.max(1, configured) * 60 * 1000;
+    timer = setInterval(() => refresh(true), interval);
+  };
+
+  const focusSubscription = vscode.window.onDidChangeWindowState((state) => {
+    if (state.focused) refresh(false);
+  });
+  const configurationSubscription = vscode.workspace.onDidChangeConfiguration((event) => {
+    if (event.affectsConfiguration("routerplex.catalogUrl")) {
+      provider.refresh();
+      refresh(true);
+    }
+    if (event.affectsConfiguration("routerplex.modelRefreshIntervalMinutes")) schedule();
+  });
+
+  schedule();
+  refresh(false);
+  return new vscode.Disposable(() => {
+    if (timer) clearInterval(timer);
+    focusSubscription.dispose();
+    configurationSubscription.dispose();
+  });
 }
 
 async function runCommand(action: () => Promise<unknown>): Promise<void> {
@@ -155,6 +200,7 @@ async function manageConnection(
       },
       { label: "$(pulse) Test connection", command: "routerplex.testConnection" },
       { label: "$(refresh) Refresh models", command: "routerplex.refreshModels" },
+      { label: "$(cloud-download) Check for updates", command: "routerplex.checkForUpdates" },
       { label: "$(file-code) Open Codex configuration", command: "routerplex.openCodexConfig" },
       { label: "$(globe) Open RouterPlex dashboard", command: "routerplex.openDashboard" },
       ...(hasKey || codexManaged

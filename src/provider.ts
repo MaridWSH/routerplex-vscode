@@ -43,6 +43,7 @@ export class RouterPlexLanguageModelProvider
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   private cachedModels: RouterPlexModel[] | undefined;
   private cacheExpiresAt = 0;
+  private refreshPromise: Promise<boolean> | undefined;
 
   readonly onDidChangeLanguageModelChatInformation = this.changeEmitter.event;
 
@@ -58,20 +59,43 @@ export class RouterPlexLanguageModelProvider
     this.changeEmitter.fire();
   }
 
+  async refreshFromCatalog(force = false): Promise<boolean> {
+    if (!force && this.cachedModels && Date.now() < this.cacheExpiresAt) return false;
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = this.fetchAndCacheModels();
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = undefined;
+    }
+  }
+
   private configuration(): vscode.WorkspaceConfiguration {
     return vscode.workspace.getConfiguration("routerplex");
   }
 
+  private async fetchAndCacheModels(): Promise<boolean> {
+    const catalogUrl = this.configuration().get<string>("catalogUrl", DEFAULT_CATALOG_URL);
+    const models = await fetchModels(catalogUrl);
+    const changed = JSON.stringify(models) !== JSON.stringify(this.cachedModels);
+    this.cachedModels = models;
+    this.cacheExpiresAt = Date.now() + CATALOG_TTL_MS;
+    if (changed) this.changeEmitter.fire();
+    return changed;
+  }
+
   private async models(): Promise<RouterPlexModel[]> {
     if (this.cachedModels && Date.now() < this.cacheExpiresAt) return this.cachedModels;
-    const catalogUrl = this.configuration().get<string>("catalogUrl", DEFAULT_CATALOG_URL);
     try {
-      this.cachedModels = await fetchModels(catalogUrl);
+      await this.refreshFromCatalog();
     } catch {
-      this.cachedModels = fallbackModels();
+      if (!this.cachedModels) this.cachedModels = fallbackModels();
+      this.cacheExpiresAt = Date.now() + CATALOG_TTL_MS;
     }
-    this.cacheExpiresAt = Date.now() + CATALOG_TTL_MS;
-    return this.cachedModels;
+    const models = this.cachedModels ?? fallbackModels();
+    this.cachedModels = models;
+    return models;
   }
 
   async provideLanguageModelChatInformation(

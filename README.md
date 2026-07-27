@@ -17,7 +17,7 @@ DeepSeek, Qwen, and other models with prepaid billing and per-key spend limits.
 
 ### Install the released VSIX
 
-1. Download `routerplex-models-0.1.1.vsix` from the
+1. Download `routerplex-models-0.1.2.vsix` from the
    [latest GitHub release](https://github.com/MaridWSH/routerplex-vscode/releases/latest).
 2. Open VS Code.
 3. Open the Command Palette with `Ctrl+Shift+P` or `Cmd+Shift+P`.
@@ -27,7 +27,7 @@ DeepSeek, Qwen, and other models with prepaid billing and per-key spend limits.
 You can also install it from a terminal when the `code` command is available:
 
 ```bash
-code --install-extension routerplex-models-0.1.1.vsix
+code --install-extension routerplex-models-0.1.2.vsix
 ```
 
 ### Build from source
@@ -41,7 +41,7 @@ npm run check
 npm run package
 ```
 
-Install the generated `routerplex-models-0.1.1.vsix` through
+Install the generated `routerplex-models-0.1.2.vsix` through
 **Extensions: Install from VSIX...**.
 
 ## First-time setup
@@ -69,8 +69,10 @@ The setup command performs a connection test before saving the key. It then:
 
 The extension uses RouterPlex's OpenAI-compatible Chat Completions endpoint for
 VS Code Chat. Streaming responses and tool calls are supported. The model list
-comes from RouterPlex's live public catalog and can be refreshed with
-**RouterPlex: Refresh Models**.
+comes from RouterPlex's live public catalog. It refreshes automatically every
+five minutes and whenever VS Code regains focus, so newly added models appear
+without reinstalling the extension. You can also run **RouterPlex: Refresh
+Models** for an immediate refresh.
 
 ## Use RouterPlex in Codex
 
@@ -101,6 +103,20 @@ and start a new Codex chat after configuration.
 The Codex CLI and official VS Code extension share the same provider
 configuration and environment variable.
 
+## Automatic extension updates
+
+Starting with version 0.1.2, RouterPlex Models checks the latest stable GitHub
+Release every six hours. When a newer matching VSIX is available, the extension
+downloads and installs it through VS Code, then asks you to reload the window.
+
+You can run **RouterPlex: Check for Updates** at any time. Set
+`routerplex.autoUpdate` to `false` to disable background installation. Releases
+are only accepted from the official `MaridWSH/routerplex-vscode` repository and
+must contain a version-matched `routerplex-models-<version>.vsix` asset.
+
+Users upgrading from 0.1.1 need to install 0.1.2 once. Later releases can then
+update automatically.
+
 ## Security
 
 - VS Code Chat uses VS Code's encrypted SecretStorage.
@@ -125,6 +141,7 @@ and only the model access required for your workflow.
 | `RouterPlex: Configure Codex` | Choose the Codex model and update config |
 | `RouterPlex: Test Connection` | Validate the stored key |
 | `RouterPlex: Refresh Models` | Reload the public model catalog |
+| `RouterPlex: Check for Updates` | Check, download, and install the latest release |
 | `RouterPlex: Open Codex Configuration` | Open the active `config.toml` |
 | `RouterPlex: Remove Configuration` | Remove credentials and managed settings |
 | `RouterPlex: Open Dashboard` | Open the RouterPlex dashboard |
@@ -137,6 +154,9 @@ and only the model access required for your workflow.
 | `routerplex.catalogUrl` | `https://routerplex.com/api/models` | Public live model catalog |
 | `routerplex.codexHome` | Empty | Override `CODEX_HOME` or `~/.codex` |
 | `routerplex.shellProfile` | Empty | Override the shell profile used for `ROUTERPLEX_API_KEY` |
+| `routerplex.modelRefreshIntervalMinutes` | `5` | Automatic model catalog refresh interval |
+| `routerplex.autoUpdate` | `true` | Automatically install stable GitHub release updates |
+| `routerplex.updateCheckIntervalHours` | `6` | Automatic extension update check interval |
 
 ## Troubleshooting
 
