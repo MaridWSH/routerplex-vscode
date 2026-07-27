@@ -62,14 +62,15 @@ The setup command performs a connection test before saving the key. It then:
 
 ## RouterPlex control panel
 
-Select the RouterPlex icon in the Activity Bar to open the native control
-panel. No webview or embedded website is used.
+Select the RouterPlex icon in the Activity Bar to open the branded control
+panel. The compact panel uses RouterPlex colors while keeping every action
+inside VS Code.
 
 The panel provides:
 
 - API-key and Codex configuration status;
 - the current Codex model;
-- the live RouterPlex model catalog;
+- a searchable live RouterPlex model catalog;
 - one-click Codex model switching;
 - API-key replacement and connection testing;
 - model refresh and extension update checks;

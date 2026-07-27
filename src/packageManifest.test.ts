@@ -12,7 +12,7 @@ interface PackageManifest {
   };
 }
 
-test("contributes a native RouterPlex Activity Bar panel without a dashboard webview", async () => {
+test("contributes a branded RouterPlex Activity Bar webview", async () => {
   const source = await readFile(path.resolve("package.json"), "utf8");
   const manifest = JSON.parse(source) as PackageManifest;
   const contributes = manifest.contributes;
@@ -21,7 +21,7 @@ test("contributes a native RouterPlex Activity Bar panel without a dashboard web
   const commands = new Set((contributes?.commands ?? []).map((item) => item.command));
 
   assert.equal(container?.icon, "media/routerplex.svg");
-  assert.equal(panel?.type, undefined);
+  assert.equal(panel?.type, "webview");
   assert.equal(contributes?.languageModelChatProviders?.[0]?.managementCommand, "routerplex.openPanel");
   assert.equal(commands.has("routerplex.openPanel"), true);
   assert.equal(commands.has("routerplex.openDashboard"), false);

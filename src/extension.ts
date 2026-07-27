@@ -12,7 +12,7 @@ import {
 import { CredentialManager } from "./credentials.js";
 import { fetchModels, modelPriceDetail, type RouterPlexModel } from "./models.js";
 import { RouterPlexLanguageModelProvider } from "./provider.js";
-import { RouterPlexTreeProvider } from "./sidebar.js";
+import { RouterPlexPanelProvider } from "./sidebar.js";
 import { ExtensionUpdateService } from "./updater.js";
 
 const DEFAULT_MODEL_REFRESH_INTERVAL_MINUTES = 5;
@@ -23,34 +23,33 @@ interface ModelQuickPickItem extends vscode.QuickPickItem {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   let provider: RouterPlexLanguageModelProvider;
-  let tree: RouterPlexTreeProvider | undefined;
+  let panel: RouterPlexPanelProvider | undefined;
   const credentials = new CredentialManager(context, () => {
     provider.refresh();
-    tree?.refresh();
+    void panel?.refresh();
   });
   await credentials.restoreEnvironment();
   provider = new RouterPlexLanguageModelProvider(credentials);
   const updater = new ExtensionUpdateService(context);
-  tree = new RouterPlexTreeProvider(context, credentials, provider);
+  panel = new RouterPlexPanelProvider(context, credentials, provider);
 
   const runAndRefresh = (action: () => Promise<unknown>) =>
     runCommand(async () => {
       try {
         await action();
       } finally {
-        tree?.refresh();
+        await panel?.refresh();
       }
     });
 
   context.subscriptions.push(
     provider,
     updater,
-    tree,
-    vscode.window.createTreeView("routerplex.controlPanel", {
-      treeDataProvider: tree,
-      showCollapseAll: true,
+    panel,
+    vscode.window.registerWebviewViewProvider("routerplex.controlPanel", panel, {
+      webviewOptions: { retainContextWhenHidden: true },
     }),
-    provider.onDidChangeLanguageModelChatInformation(() => tree?.refresh()),
+    provider.onDidChangeLanguageModelChatInformation(() => void panel?.refresh()),
     vscode.lm.registerLanguageModelChatProvider(ROUTERPLEX_VENDOR, provider),
     vscode.commands.registerCommand("routerplex.openPanel", () =>
       vscode.commands.executeCommand("workbench.view.extension.routerplex"),

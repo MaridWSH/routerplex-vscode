@@ -2,9 +2,9 @@
 
 ## 0.1.3
 
-- Add a native RouterPlex Activity Bar control panel without a webview.
-- Show API-key, Codex, current-model, and backup status in the side panel.
-- List the live RouterPlex catalog and switch Codex models with one click.
+- Add a branded RouterPlex Activity Bar control panel using the product palette.
+- Show API-key, Codex, current-model, and backup status in a compact status surface.
+- Add search to the live RouterPlex catalog and switch Codex models with one click.
 - Add panel actions for setup, API keys, connection testing, refresh, updates, config, settings, and removal.
 - Remove the dashboard command from the extension UI.
 

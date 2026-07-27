@@ -62,7 +62,8 @@
       "routerplex": [
         {
           "id": "routerplex.controlPanel",
-          "name": "Control Panel"
+          "name": "Control Panel",
+          "type": "webview"
         }
       ]
     },
