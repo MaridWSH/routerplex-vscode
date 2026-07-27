@@ -2,7 +2,7 @@
   "name": "routerplex-models",
   "displayName": "RouterPlex Models",
   "description": "Use RouterPlex models in VS Code Chat and configure the Codex extension with one API key.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "routerplex",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -30,11 +30,13 @@
     "language models"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "*"
   ],
   "main": "./dist/extension.js",
+  "icon": "media/icon.png",
   "files": [
     "dist/**",
+    "media/**",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -114,6 +116,12 @@
           "default": "",
           "scope": "machine",
           "description": "Optional Codex home directory. Leave empty to use CODEX_HOME or ~/.codex."
+        },
+        "routerplex.shellProfile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Optional shell profile used to export ROUTERPLEX_API_KEY. Leave empty to detect bash, zsh, fish, or ~/.profile."
         }
       }
     }

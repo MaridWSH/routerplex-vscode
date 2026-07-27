@@ -1,5 +1,7 @@
 import { parse } from "smol-toml";
 
+import { ROUTERPLEX_CODEX_ENV_KEY } from "./constants.js";
+
 const MANAGED_START = "# >>> RouterPlex managed settings";
 const MANAGED_END = "# <<< RouterPlex managed settings";
 const ROOT_KEYS = new Set(["model", "model_provider"]);
@@ -7,8 +9,6 @@ const ROOT_KEYS = new Set(["model", "model_provider"]);
 export interface CodexProviderOptions {
   model: string;
   baseUrl: string;
-  authCommand: string;
-  authArgs: string[];
 }
 
 export interface ConfigPatchResult {
@@ -76,10 +76,6 @@ export function tomlString(value: string): string {
   return JSON.stringify(value);
 }
 
-function authArgs(args: string[]): string {
-  return `[${args.map(tomlString).join(", ")}]`;
-}
-
 function compactBlankLines(value: string): string {
   return value.replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -103,12 +99,8 @@ export function applyRouterPlexConfig(source: string, options: CodexProviderOpti
     `name = ${tomlString("RouterPlex")}`,
     `base_url = ${tomlString(options.baseUrl)}`,
     `wire_api = ${tomlString("responses")}`,
-    "",
-    "[model_providers.routerplex.auth]",
-    `command = ${tomlString(options.authCommand)}`,
-    `args = ${authArgs(options.authArgs)}`,
-    "timeout_ms = 5000",
-    "refresh_interval_ms = 0",
+    `env_key = ${tomlString(ROUTERPLEX_CODEX_ENV_KEY)}`,
+    `env_key_instructions = ${tomlString(`Export ${ROUTERPLEX_CODEX_ENV_KEY} before starting VS Code or Codex.`)}`,
   ].join("\n");
 
   const body = compactBlankLines(stripped.lines.join("\n"));

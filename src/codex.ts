@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
@@ -6,12 +6,14 @@ import * as vscode from "vscode";
 import { normalizeBaseUrl } from "./api.js";
 import { applyRouterPlexConfig, removeRouterPlexConfig } from "./codexConfig.js";
 import {
+  CODEX_ENV_PROFILE_STATE_KEY,
   CODEX_LAST_BACKUP_STATE_KEY,
   CODEX_LAST_MODEL_STATE_KEY,
   CODEX_MANAGED_STATE_KEY,
+  CODEX_PREVIOUS_ENV_STATE_KEY,
   CODEX_PREVIOUS_ROOT_STATE_KEY,
 } from "./constants.js";
-import { removeCredentialHelper, writeCredentialHelper } from "./credentialHelper.js";
+import { persistCodexEnvironment, removeCodexEnvironment } from "./environment.js";
 
 const CONFIG_FILE = "config.toml";
 
@@ -43,12 +45,8 @@ export function codexConfigPath(): string {
   return path.join(resolveCodexHome(), CONFIG_FILE);
 }
 
-function credentialStoragePath(context: vscode.ExtensionContext): string {
-  return path.join(context.globalStorageUri.fsPath, "codex-auth");
-}
-
 async function backupConfig(context: vscode.ExtensionContext, source: string): Promise<string> {
-  const backupDirectory = path.join(context.globalStorageUri.fsPath, "backups");
+  const backupDirectory = path.join(resolveCodexHome(), "backups", "routerplex");
   await mkdir(backupDirectory, { recursive: true, mode: 0o700 });
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = path.join(backupDirectory, `config-${timestamp}.toml`);
@@ -70,34 +68,37 @@ export async function configureCodex(
   model: string,
   baseUrl: string,
 ): Promise<{ configPath: string; backupPath: string }> {
-  if (context.globalStorageUri.scheme !== "file") {
-    throw new Error("Codex configuration requires a file-backed VS Code extension host.");
-  }
-
   const configPath = codexConfigPath();
   const source = await readOptional(configPath);
   const backupPath = await backupConfig(context, source);
-  const auth = await writeCredentialHelper(credentialStoragePath(context), apiKey);
   const patch = applyRouterPlexConfig(source, {
     model,
     baseUrl: normalizeBaseUrl(baseUrl),
-    authCommand: auth.command,
-    authArgs: auth.args,
   });
 
   const alreadyManaged = context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false);
   if (!alreadyManaged) {
     await context.globalState.update(CODEX_PREVIOUS_ROOT_STATE_KEY, patch.previousRootAssignments);
   }
+  if (context.globalState.get(CODEX_PREVIOUS_ENV_STATE_KEY) === undefined) {
+    await context.globalState.update(CODEX_PREVIOUS_ENV_STATE_KEY, process.env.ROUTERPLEX_API_KEY ?? null);
+  }
+
+  const existingProfile = context.globalState.get<string>(CODEX_ENV_PROFILE_STATE_KEY);
+  const environment = await persistCodexEnvironment(context, apiKey, existingProfile);
   await writeConfig(configPath, patch.content);
+  await cleanupLegacyCredentialHelper(context);
   await context.globalState.update(CODEX_MANAGED_STATE_KEY, true);
   await context.globalState.update(CODEX_LAST_MODEL_STATE_KEY, model);
+  await context.globalState.update(CODEX_ENV_PROFILE_STATE_KEY, environment.profilePath);
   return { configPath, backupPath };
 }
 
-export async function updateCodexCredential(context: vscode.ExtensionContext, apiKey: string): Promise<void> {
+export async function updateCodexEnvironment(context: vscode.ExtensionContext, apiKey: string): Promise<void> {
   if (!context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false)) return;
-  await writeCredentialHelper(credentialStoragePath(context), apiKey);
+  const existingProfile = context.globalState.get<string>(CODEX_ENV_PROFILE_STATE_KEY);
+  const environment = await persistCodexEnvironment(context, apiKey, existingProfile);
+  await context.globalState.update(CODEX_ENV_PROFILE_STATE_KEY, environment.profilePath);
 }
 
 export async function removeCodexConfiguration(
@@ -112,11 +113,26 @@ export async function removeCodexConfiguration(
     await writeConfig(configPath, removeRouterPlexConfig(source, previous));
   }
 
-  await removeCredentialHelper(credentialStoragePath(context));
+  const profilePath = context.globalState.get<string>(CODEX_ENV_PROFILE_STATE_KEY);
+  const previousEnvironment = context.globalState.get<string | null>(CODEX_PREVIOUS_ENV_STATE_KEY);
+  await removeCodexEnvironment(context, profilePath, previousEnvironment);
+  await cleanupLegacyCredentialHelper(context);
   await context.globalState.update(CODEX_MANAGED_STATE_KEY, false);
   await context.globalState.update(CODEX_PREVIOUS_ROOT_STATE_KEY, undefined);
   await context.globalState.update(CODEX_LAST_MODEL_STATE_KEY, undefined);
+  await context.globalState.update(CODEX_ENV_PROFILE_STATE_KEY, undefined);
+  await context.globalState.update(CODEX_PREVIOUS_ENV_STATE_KEY, undefined);
   return { configPath, ...(backupPath ? { backupPath } : {}) };
+}
+
+async function cleanupLegacyCredentialHelper(context: vscode.ExtensionContext): Promise<void> {
+  if (context.globalStorageUri.scheme !== "file") return;
+  const storagePath = path.join(context.globalStorageUri.fsPath, "codex-auth");
+  await Promise.all(
+    ["routerplex.key", "routerplex-auth.sh", "routerplex-auth.ps1"].map((file) =>
+      rm(path.join(storagePath, file), { force: true }),
+    ),
+  );
 }
 
 export async function openCodexConfiguration(): Promise<void> {

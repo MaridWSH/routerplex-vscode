@@ -17,9 +17,10 @@ interface ModelQuickPickItem extends vscode.QuickPickItem {
   model: RouterPlexModel;
 }
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
   let provider: RouterPlexLanguageModelProvider;
   const credentials = new CredentialManager(context, () => provider.refresh());
+  await credentials.restoreEnvironment();
   provider = new RouterPlexLanguageModelProvider(credentials);
 
   context.subscriptions.push(
@@ -99,7 +100,7 @@ async function configureCodexCommand(
 
   if (!context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false)) {
     const confirmation = await vscode.window.showWarningMessage(
-      "Codex cannot read VS Code SecretStorage. RouterPlex will create a user-only credential file and a backup of config.toml.",
+      "Codex reads ROUTERPLEX_API_KEY from its environment. RouterPlex will export this key in your shell profile and back up config.toml.",
       { modal: true },
       "Continue",
     );
@@ -111,7 +112,7 @@ async function configureCodexCommand(
   const baseUrl = vscode.workspace.getConfiguration("routerplex").get<string>("apiBaseUrl", DEFAULT_API_BASE_URL);
   const result = await configureCodex(context, apiKey, model.id, baseUrl);
   await vscode.window.showInformationMessage(
-    `Codex now uses ${model.id} through RouterPlex. Backup: ${result.backupPath}`,
+    `Codex now uses ${model.id} through RouterPlex. ROUTERPLEX_API_KEY was exported. Backup: ${result.backupPath}`,
   );
 }
 
@@ -172,7 +173,7 @@ async function removeConfiguration(
   provider: RouterPlexLanguageModelProvider,
 ): Promise<void> {
   const confirmation = await vscode.window.showWarningMessage(
-    "Remove the RouterPlex API key, Codex credential helper, and RouterPlex entries from Codex config.toml?",
+    "Remove the RouterPlex API key, managed environment export, and RouterPlex entries from Codex config.toml?",
     { modal: true },
     "Remove",
   );

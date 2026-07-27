@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
 
 import { validateApiKey } from "./api.js";
-import { DEFAULT_API_BASE_URL, ROUTERPLEX_SECRET_KEY } from "./constants.js";
-import { updateCodexCredential } from "./codex.js";
+import { updateCodexEnvironment } from "./codex.js";
+import { CODEX_MANAGED_STATE_KEY, DEFAULT_API_BASE_URL, ROUTERPLEX_SECRET_KEY } from "./constants.js";
+import { restoreRuntimeEnvironment } from "./environment.js";
 import type { ApiKeySource } from "./provider.js";
 
 export class CredentialManager implements ApiKeySource {
@@ -17,6 +18,12 @@ export class CredentialManager implements ApiKeySource {
 
   async getOrPrompt(): Promise<string | undefined> {
     return (await this.get()) ?? this.promptAndStore();
+  }
+
+  async restoreEnvironment(): Promise<void> {
+    if (!this.context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false)) return;
+    const apiKey = await this.get();
+    if (apiKey) restoreRuntimeEnvironment(this.context, apiKey);
   }
 
   async promptAndStore(): Promise<string | undefined> {
@@ -41,7 +48,7 @@ export class CredentialManager implements ApiKeySource {
     );
 
     await this.context.secrets.store(ROUTERPLEX_SECRET_KEY, apiKey.trim());
-    await updateCodexCredential(this.context, apiKey.trim());
+    await updateCodexEnvironment(this.context, apiKey.trim());
     this.onDidChange();
     return apiKey.trim();
   }

@@ -7,8 +7,6 @@ import { applyRouterPlexConfig, removeRouterPlexConfig } from "./codexConfig.js"
 const OPTIONS = {
   model: "gpt-5.6-sol",
   baseUrl: "https://api.routerplex.com/v1",
-  authCommand: "/home/test user/routerplex-auth.sh",
-  authArgs: [],
 };
 
 test("adds RouterPlex to an empty Codex configuration", () => {
@@ -19,7 +17,8 @@ test("adds RouterPlex to an empty Codex configuration", () => {
   assert.equal(parsed.model, "gpt-5.6-sol");
   assert.deepEqual(result.previousRootAssignments, []);
   assert.match(result.content, /wire_api = "responses"/);
-  assert.match(result.content, /command = "\/home\/test user\/routerplex-auth\.sh"/);
+  assert.match(result.content, /env_key = "ROUTERPLEX_API_KEY"/);
+  assert.doesNotMatch(result.content, /model_providers\.routerplex\.auth/);
 });
 
 test("preserves unrelated config and captures displaced root model settings", () => {
@@ -48,7 +47,7 @@ test("reconfiguring replaces the managed provider without duplicates", () => {
   const second = applyRouterPlexConfig(first, { ...OPTIONS, model: "claude-sonnet-5" }).content;
 
   assert.equal((second.match(/\[model_providers\.routerplex]/g) ?? []).length, 1);
-  assert.equal((second.match(/\[model_providers\.routerplex\.auth]/g) ?? []).length, 1);
+  assert.equal((second.match(/env_key = "ROUTERPLEX_API_KEY"/g) ?? []).length, 1);
   assert.match(second, /model = "claude-sonnet-5"/);
   parse(second);
 });
@@ -66,15 +65,23 @@ test("removal restores the previous model selection and leaves other tables", ()
   parse(removed);
 });
 
-test("escapes Windows command paths as valid TOML strings", () => {
-  const result = applyRouterPlexConfig("", {
-    ...OPTIONS,
-    authCommand: "powershell.exe",
-    authArgs: ["-File", "C:\\Users\\Ada Lovelace\\routerplex-auth.ps1"],
-  });
-  const parsed = parse(result.content) as {
-    model_providers: { routerplex: { auth: { args: string[] } } };
-  };
-
-  assert.equal(parsed.model_providers.routerplex.auth.args[1], "C:\\Users\\Ada Lovelace\\routerplex-auth.ps1");
+test("replaces a legacy command-backed provider with env_key", () => {
+  const legacy = [
+    'model_provider = "routerplex"',
+    'model = "gpt-5.6-sol"',
+    '',
+    '[model_providers.routerplex]',
+    'name = "RouterPlex"',
+    'base_url = "https://api.routerplex.com/v1"',
+    'wire_api = "responses"',
+    '',
+    '[model_providers.routerplex.auth]',
+    'command = "/tmp/routerplex-auth.sh"',
+    'args = []',
+    '',
+  ].join("\n");
+  const result = applyRouterPlexConfig(legacy, OPTIONS);
+  assert.match(result.content, /env_key = "ROUTERPLEX_API_KEY"/);
+  assert.doesNotMatch(result.content, /routerplex\.auth|command =/);
+  parse(result.content);
 });
