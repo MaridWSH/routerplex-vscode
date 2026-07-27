@@ -2,7 +2,7 @@
   "name": "routerplex-models",
   "displayName": "RouterPlex Models",
   "description": "Use RouterPlex models in VS Code Chat and configure the Codex extension with one API key.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "routerplex",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -46,10 +46,32 @@
       {
         "vendor": "routerplex",
         "displayName": "RouterPlex",
-        "managementCommand": "routerplex.manageConnection"
+        "managementCommand": "routerplex.openPanel"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "routerplex",
+          "title": "RouterPlex",
+          "icon": "media/routerplex.svg"
+        }
+      ]
+    },
+    "views": {
+      "routerplex": [
+        {
+          "id": "routerplex.controlPanel",
+          "name": "Control Panel"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "routerplex.openPanel",
+        "title": "RouterPlex: Open Control Panel",
+        "category": "RouterPlex"
+      },
       {
         "command": "routerplex.setup",
         "title": "RouterPlex: Set Up VS Code and Codex",
@@ -63,7 +85,8 @@
       {
         "command": "routerplex.configureApiKey",
         "title": "RouterPlex: Configure API Key",
-        "category": "RouterPlex"
+        "category": "RouterPlex",
+        "icon": "$(key)"
       },
       {
         "command": "routerplex.configureCodex",
@@ -78,7 +101,8 @@
       {
         "command": "routerplex.refreshModels",
         "title": "RouterPlex: Refresh Models",
-        "category": "RouterPlex"
+        "category": "RouterPlex",
+        "icon": "$(refresh)"
       },
       {
         "command": "routerplex.checkForUpdates",
@@ -91,16 +115,36 @@
         "category": "RouterPlex"
       },
       {
+        "command": "routerplex.openSettings",
+        "title": "RouterPlex: Open Settings",
+        "category": "RouterPlex",
+        "icon": "$(settings)"
+      },
+      {
         "command": "routerplex.removeConfiguration",
         "title": "RouterPlex: Remove Configuration",
         "category": "RouterPlex"
-      },
-      {
-        "command": "routerplex.openDashboard",
-        "title": "RouterPlex: Open Dashboard",
-        "category": "RouterPlex"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "routerplex.configureApiKey",
+          "when": "view == routerplex.controlPanel",
+          "group": "navigation@1"
+        },
+        {
+          "command": "routerplex.refreshModels",
+          "when": "view == routerplex.controlPanel",
+          "group": "navigation@2"
+        },
+        {
+          "command": "routerplex.openSettings",
+          "when": "view == routerplex.controlPanel",
+          "group": "navigation@3"
+        }
+      ]
+    },
     "configuration": {
       "title": "RouterPlex",
       "properties": {

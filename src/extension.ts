@@ -12,6 +12,7 @@ import {
 import { CredentialManager } from "./credentials.js";
 import { fetchModels, modelPriceDetail, type RouterPlexModel } from "./models.js";
 import { RouterPlexLanguageModelProvider } from "./provider.js";
+import { RouterPlexTreeProvider } from "./sidebar.js";
 import { ExtensionUpdateService } from "./updater.js";
 
 const DEFAULT_MODEL_REFRESH_INTERVAL_MINUTES = 5;
@@ -22,30 +23,59 @@ interface ModelQuickPickItem extends vscode.QuickPickItem {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   let provider: RouterPlexLanguageModelProvider;
-  const credentials = new CredentialManager(context, () => provider.refresh());
+  let tree: RouterPlexTreeProvider | undefined;
+  const credentials = new CredentialManager(context, () => {
+    provider.refresh();
+    tree?.refresh();
+  });
   await credentials.restoreEnvironment();
   provider = new RouterPlexLanguageModelProvider(credentials);
   const updater = new ExtensionUpdateService(context);
+  tree = new RouterPlexTreeProvider(context, credentials, provider);
+
+  const runAndRefresh = (action: () => Promise<unknown>) =>
+    runCommand(async () => {
+      try {
+        await action();
+      } finally {
+        tree?.refresh();
+      }
+    });
 
   context.subscriptions.push(
     provider,
     updater,
+    tree,
+    vscode.window.createTreeView("routerplex.controlPanel", {
+      treeDataProvider: tree,
+      showCollapseAll: true,
+    }),
+    provider.onDidChangeLanguageModelChatInformation(() => tree?.refresh()),
     vscode.lm.registerLanguageModelChatProvider(ROUTERPLEX_VENDOR, provider),
-    vscode.commands.registerCommand("routerplex.setup", () => runCommand(() => setup(context, credentials, provider))),
+    vscode.commands.registerCommand("routerplex.openPanel", () =>
+      vscode.commands.executeCommand("workbench.view.extension.routerplex"),
+    ),
+    vscode.commands.registerCommand("routerplex.setup", () => runAndRefresh(() => setup(context, credentials, provider))),
     vscode.commands.registerCommand("routerplex.manageConnection", () =>
-      runCommand(() => manageConnection(context, credentials, provider)),
+      runAndRefresh(() => manageConnection(context, credentials, provider)),
     ),
     vscode.commands.registerCommand("routerplex.configureApiKey", () =>
-      runCommand(async () => {
+      runAndRefresh(async () => {
         const key = await credentials.promptAndStore();
         if (key) vscode.window.showInformationMessage("RouterPlex API key saved securely in VS Code.");
       }),
     ),
     vscode.commands.registerCommand("routerplex.configureCodex", () =>
-      runCommand(() => configureCodexCommand(context, credentials)),
+      runAndRefresh(() => configureCodexCommand(context, credentials)),
+    ),
+    vscode.commands.registerCommand("routerplex.configureCodexModel", (modelId: unknown) =>
+      runAndRefresh(async () => {
+        if (typeof modelId !== "string" || !modelId) throw new Error("A RouterPlex model must be selected.");
+        await configureCodexCommand(context, credentials, undefined, modelId);
+      }),
     ),
     vscode.commands.registerCommand("routerplex.testConnection", () =>
-      runCommand(async () => {
+      runAndRefresh(async () => {
         await vscode.window.withProgress(
           { location: vscode.ProgressLocation.Notification, title: "Testing RouterPlex connection" },
           () => credentials.test(),
@@ -54,20 +84,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     ),
     vscode.commands.registerCommand("routerplex.refreshModels", () =>
-      runCommand(async () => {
+      runAndRefresh(async () => {
         const changed = await provider.refreshFromCatalog(true);
         vscode.window.showInformationMessage(
           changed ? "RouterPlex model catalog updated." : "RouterPlex model catalog is already current.",
         );
       }),
     ),
-    vscode.commands.registerCommand("routerplex.checkForUpdates", () => runCommand(() => updater.check(true))),
-    vscode.commands.registerCommand("routerplex.openCodexConfig", () => runCommand(openCodexConfiguration)),
-    vscode.commands.registerCommand("routerplex.removeConfiguration", () =>
-      runCommand(() => removeConfiguration(context, credentials, provider)),
+    vscode.commands.registerCommand("routerplex.checkForUpdates", () => runAndRefresh(() => updater.check(true))),
+    vscode.commands.registerCommand("routerplex.openCodexConfig", () => runAndRefresh(openCodexConfiguration)),
+    vscode.commands.registerCommand("routerplex.openSettings", () =>
+      vscode.commands.executeCommand("workbench.action.openSettings", "@ext:routerplex.routerplex-models"),
     ),
-    vscode.commands.registerCommand("routerplex.openDashboard", () =>
-      vscode.env.openExternal(vscode.Uri.parse("https://routerplex.com/dashboard")),
+    vscode.commands.registerCommand("routerplex.removeConfiguration", () =>
+      runAndRefresh(() => removeConfiguration(context, credentials, provider)),
     ),
     startCatalogRefresh(provider),
   );
@@ -139,6 +169,7 @@ async function configureCodexCommand(
   context: vscode.ExtensionContext,
   credentials: CredentialManager,
   existingKey?: string,
+  selectedModelId?: string,
 ): Promise<void> {
   const apiKey = existingKey ?? (await credentials.getOrPrompt());
   if (!apiKey) return;
@@ -152,12 +183,12 @@ async function configureCodexCommand(
     if (confirmation !== "Continue") return;
   }
 
-  const model = await pickCodexModel(context);
-  if (!model) return;
+  const modelId = selectedModelId ?? (await pickCodexModel(context))?.id;
+  if (!modelId) return;
   const baseUrl = vscode.workspace.getConfiguration("routerplex").get<string>("apiBaseUrl", DEFAULT_API_BASE_URL);
-  const result = await configureCodex(context, apiKey, model.id, baseUrl);
+  const result = await configureCodex(context, apiKey, modelId, baseUrl);
   await vscode.window.showInformationMessage(
-    `Codex now uses ${model.id} through RouterPlex. ROUTERPLEX_API_KEY was exported. Backup: ${result.backupPath}`,
+    `Codex now uses ${modelId} through RouterPlex. ROUTERPLEX_API_KEY was exported. Backup: ${result.backupPath}`,
   );
 }
 
@@ -193,6 +224,7 @@ async function manageConnection(
   const codexManaged = context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false);
   const choice = await vscode.window.showQuickPick(
     [
+      { label: "$(layout-sidebar-left) Open RouterPlex panel", command: "routerplex.openPanel" },
       { label: hasKey ? "$(key) Replace API key" : "$(key) Configure API key", command: "routerplex.configureApiKey" },
       {
         label: codexManaged ? "$(settings-gear) Change Codex model" : "$(settings-gear) Configure Codex",
@@ -202,7 +234,7 @@ async function manageConnection(
       { label: "$(refresh) Refresh models", command: "routerplex.refreshModels" },
       { label: "$(cloud-download) Check for updates", command: "routerplex.checkForUpdates" },
       { label: "$(file-code) Open Codex configuration", command: "routerplex.openCodexConfig" },
-      { label: "$(globe) Open RouterPlex dashboard", command: "routerplex.openDashboard" },
+      { label: "$(settings) Open RouterPlex settings", command: "routerplex.openSettings" },
       ...(hasKey || codexManaged
         ? [{ label: "$(trash) Remove RouterPlex configuration", command: "routerplex.removeConfiguration" }]
         : []),

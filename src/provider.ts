@@ -71,6 +71,11 @@ export class RouterPlexLanguageModelProvider
     }
   }
 
+  async listModels(force = false): Promise<RouterPlexModel[]> {
+    if (force) await this.refreshFromCatalog(true);
+    return this.models();
+  }
+
   private configuration(): vscode.WorkspaceConfiguration {
     return vscode.workspace.getConfiguration("routerplex");
   }

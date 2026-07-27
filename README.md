@@ -17,7 +17,7 @@ DeepSeek, Qwen, and other models with prepaid billing and per-key spend limits.
 
 ### Install the released VSIX
 
-1. Download `routerplex-models-0.1.2.vsix` from the
+1. Download `routerplex-models-0.1.3.vsix` from the
    [latest GitHub release](https://github.com/MaridWSH/routerplex-vscode/releases/latest).
 2. Open VS Code.
 3. Open the Command Palette with `Ctrl+Shift+P` or `Cmd+Shift+P`.
@@ -27,7 +27,7 @@ DeepSeek, Qwen, and other models with prepaid billing and per-key spend limits.
 You can also install it from a terminal when the `code` command is available:
 
 ```bash
-code --install-extension routerplex-models-0.1.2.vsix
+code --install-extension routerplex-models-0.1.3.vsix
 ```
 
 ### Build from source
@@ -41,13 +41,13 @@ npm run check
 npm run package
 ```
 
-Install the generated `routerplex-models-0.1.2.vsix` through
+Install the generated `routerplex-models-0.1.3.vsix` through
 **Extensions: Install from VSIX...**.
 
 ## First-time setup
 
-1. Open the Command Palette.
-2. Run **RouterPlex: Set Up VS Code and Codex**.
+1. Select the RouterPlex icon in the Activity Bar.
+2. Expand **Actions** and select **Run Setup**.
 3. Paste a dedicated RouterPlex API key.
 4. Choose the default RouterPlex model for Codex.
 5. Reload VS Code before opening a new Codex chat.
@@ -59,6 +59,24 @@ The setup command performs a connection test before saving the key. It then:
 - exports `ROUTERPLEX_API_KEY` for Codex and new integrated terminals;
 - creates a backup before changing Codex's `config.toml`;
 - keeps the API key out of `config.toml`.
+
+## RouterPlex control panel
+
+Select the RouterPlex icon in the Activity Bar to open the native control
+panel. No webview or embedded website is used.
+
+The panel provides:
+
+- API-key and Codex configuration status;
+- the current Codex model;
+- the live RouterPlex model catalog;
+- one-click Codex model switching;
+- API-key replacement and connection testing;
+- model refresh and extension update checks;
+- Codex configuration, RouterPlex settings, and configuration removal.
+
+Expand **Codex Models** and select any model to configure it for Codex. The
+panel refreshes after configuration changes and when the live catalog changes.
 
 ## Use RouterPlex in VS Code Chat
 
@@ -135,6 +153,7 @@ and only the model access required for your workflow.
 
 | Command | Purpose |
 | --- | --- |
+| `RouterPlex: Open Control Panel` | Open the RouterPlex Activity Bar panel |
 | `RouterPlex: Set Up VS Code and Codex` | Complete first-time setup |
 | `RouterPlex: Manage Connection` | Open the RouterPlex management menu |
 | `RouterPlex: Configure API Key` | Add or replace the API key |
@@ -143,8 +162,8 @@ and only the model access required for your workflow.
 | `RouterPlex: Refresh Models` | Reload the public model catalog |
 | `RouterPlex: Check for Updates` | Check, download, and install the latest release |
 | `RouterPlex: Open Codex Configuration` | Open the active `config.toml` |
+| `RouterPlex: Open Settings` | Open extension settings |
 | `RouterPlex: Remove Configuration` | Remove credentials and managed settings |
-| `RouterPlex: Open Dashboard` | Open the RouterPlex dashboard |
 
 ## Settings
 
