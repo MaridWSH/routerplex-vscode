@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1
+
+- Registered control-panel commands before optional editor integrations so
+  unsupported language-model APIs cannot leave toolbar commands unavailable.
+- Made OpenCode and Claude configuration strictly opt-in. Joining or refreshing
+  a team only updates those tools after the user enables each one explicitly.
+
 ## 1.4.0
 
 - Added one-click OpenCode configuration with a dedicated global provider,

@@ -36,7 +36,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     provider.refresh();
     void panel?.refresh();
   });
-  await sessions.restoreEnvironment();
   provider = new HackathonModelProvider(sessions);
   const updater = new ExtensionUpdateService(context);
 
@@ -66,16 +65,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     });
 
-  context.subscriptions.push(
-    status,
-    provider,
-    updater,
-    panel,
-    vscode.window.registerWebviewViewProvider(HackathonPanelProvider.viewId, panel, {
-      webviewOptions: { retainContextWhenHidden: true },
-    }),
-    provider.onDidChangeLanguageModelChatInformation(() => void panel?.refresh()),
-    vscode.lm.registerLanguageModelChatProvider(HACKATHON_VENDOR, provider),
+  const commandRegistrations = [
     vscode.commands.registerCommand("routerplexHackathon.openPanel", () =>
       vscode.commands.executeCommand("workbench.view.extension.routerplexHackathon"),
     ),
@@ -159,8 +149,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("routerplexHackathon.signOut", () =>
       runAndRefresh(() => signOut(context, sessions, provider, showCredit)),
     ),
-  );
-  updater.start();
+  ];
+
+  // Commands must remain available even if an optional host integration is not
+  // supported by the current VS Code-compatible editor.
+  context.subscriptions.push(status, provider, updater, panel, ...commandRegistrations);
+
+  try {
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(HackathonPanelProvider.viewId, panel, {
+        webviewOptions: { retainContextWhenHidden: true },
+      }),
+    );
+  } catch (error) {
+    logActivationFailure("register the control panel", error);
+  }
+
+  context.subscriptions.push(provider.onDidChangeLanguageModelChatInformation(() => void panel?.refresh()));
+  try {
+    context.subscriptions.push(vscode.lm.registerLanguageModelChatProvider(HACKATHON_VENDOR, provider));
+  } catch (error) {
+    logActivationFailure("register the VS Code Chat model provider", error);
+  }
+
+  try {
+    await sessions.restoreEnvironment();
+  } catch (error) {
+    logActivationFailure("restore the managed Codex environment", error);
+  }
+
+  try {
+    updater.start();
+  } catch (error) {
+    logActivationFailure("start automatic update checks", error);
+  }
+}
+
+function logActivationFailure(action: string, error: unknown): void {
+  console.error(`[RouterPlex Hackathon] Could not ${action}.`, error);
 }
 
 async function runCommand(action: () => Promise<unknown>): Promise<void> {

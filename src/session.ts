@@ -2,7 +2,13 @@ import * as vscode from "vscode";
 
 import { updateClaudeConfiguration } from "./claude.js";
 import { updateCodexEnvironment } from "./codex.js";
-import { CODEX_MANAGED_STATE_KEY, DEFAULT_API_BASE_URL, SESSION_SECRET_KEY } from "./constants.js";
+import {
+  CLAUDE_MANAGED_STATE_KEY,
+  CODEX_MANAGED_STATE_KEY,
+  DEFAULT_API_BASE_URL,
+  OPENCODE_MANAGED_STATE_KEY,
+  SESSION_SECRET_KEY,
+} from "./constants.js";
 import { claimSeat, fetchConfig, lookupTeam, normalizeConsoleUrl, type ChallengeIdea } from "./console.js";
 import { restoreRuntimeEnvironment } from "./environment.js";
 import { fallbackModels } from "./models.js";
@@ -122,7 +128,7 @@ export class SessionStore implements ApiKeySource {
       joinedAt: new Date().toISOString(),
     };
     await this.set(session);
-    await this.updateManagedTools(session);
+    await this.updateOptedInTools(session);
     return session;
   }
 
@@ -141,7 +147,7 @@ export class SessionStore implements ApiKeySource {
       baseUrl: (config.baseUrl || session.baseUrl).replace(/\/+$/, ""),
     };
     await this.set(refreshed);
-    await this.updateManagedTools(refreshed);
+    await this.updateOptedInTools(refreshed);
     return true;
   }
 
@@ -166,12 +172,15 @@ export class SessionStore implements ApiKeySource {
     this.onDidChange();
   }
 
-  private async updateManagedTools(session: HackathonSession): Promise<void> {
+  private async updateOptedInTools(session: HackathonSession): Promise<void> {
     const models = fallbackModels(session.models);
-    await Promise.all([
-      updateCodexEnvironment(this.context, session.apiKey),
-      updateOpenCodeConfiguration(this.context, session.apiKey, models, session.baseUrl),
-      updateClaudeConfiguration(this.context, session.apiKey, models, session.baseUrl),
-    ]);
+    const updates: Promise<void>[] = [updateCodexEnvironment(this.context, session.apiKey)];
+    if (this.context.globalState.get<boolean>(OPENCODE_MANAGED_STATE_KEY, false)) {
+      updates.push(updateOpenCodeConfiguration(this.context, session.apiKey, models, session.baseUrl));
+    }
+    if (this.context.globalState.get<boolean>(CLAUDE_MANAGED_STATE_KEY, false)) {
+      updates.push(updateClaudeConfiguration(this.context, session.apiKey, models, session.baseUrl));
+    }
+    await Promise.all(updates);
   }
 }

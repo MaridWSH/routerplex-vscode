@@ -51,3 +51,27 @@ test("settings stay under the hackathon namespace", async () => {
   assert.ok(keys.length >= 4);
   for (const key of keys) assert.match(key, /^routerplexHackathon\./);
 });
+
+test("registers commands before fallible editor integrations", async () => {
+  const extension = await readFile(path.resolve("src/extension.ts"), "utf8");
+  const subscriptions = extension.indexOf("...commandRegistrations");
+  const webview = extension.indexOf("registerWebviewViewProvider", subscriptions);
+  const languageModels = extension.indexOf("registerLanguageModelChatProvider", subscriptions);
+
+  assert.ok(subscriptions > 0, "command registrations are not added to subscriptions");
+  assert.ok(webview > subscriptions, "the webview is registered before commands");
+  assert.ok(languageModels > subscriptions, "the language-model provider is registered before commands");
+});
+
+test("OpenCode and Claude background updates require explicit opt-in", async () => {
+  const session = await readFile(path.resolve("src/session.ts"), "utf8");
+
+  assert.match(
+    session,
+    /get<boolean>\(OPENCODE_MANAGED_STATE_KEY, false\)[\s\S]*updateOpenCodeConfiguration/,
+  );
+  assert.match(
+    session,
+    /get<boolean>\(CLAUDE_MANAGED_STATE_KEY, false\)[\s\S]*updateClaudeConfiguration/,
+  );
+});
