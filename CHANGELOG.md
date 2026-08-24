@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.3
+
+- Fixed Configure OpenCode writing a configuration OpenCode rejects. Each model
+  carried `limit.context` without `limit.output`, and OpenCode validates the
+  whole file, so it refused the entire configuration and no hackathon model
+  appeared. Verified against OpenCode 1.16.2: the five team models load and the
+  stored key is sent as a bearer token.
+
 ## 1.4.2
 
 - Fixed the extension failing to load at all: the bundler resolved jsonc-parser

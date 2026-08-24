@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { DEFAULT_CODEX_MODEL } from "./constants.js";
+import { DEFAULT_CODEX_MODEL, MAX_OUTPUT_TOKENS } from "./constants.js";
 import { displayName, type HackathonModel } from "./models.js";
 import { isJsonObject, parseJsonObject, setJsoncValues, type JsonObject } from "./jsonConfig.js";
 
@@ -66,7 +66,11 @@ export function applyOpenCodeConfig(
       model.id,
       {
         name: displayName(model.id),
-        ...(model.context_tokens ? { limit: { context: model.context_tokens } } : {}),
+        // OpenCode's schema requires context and output together. Emitting one
+        // half invalidates the entire configuration file, not just this model.
+        ...(model.context_tokens
+          ? { limit: { context: model.context_tokens, output: MAX_OUTPUT_TOKENS } }
+          : {}),
       },
     ]),
   );

@@ -8,7 +8,7 @@ import {
   type InternalChatMessage,
   type InternalChatPart,
 } from "./chatProtocol.js";
-import { DEFAULT_CATALOG_URL } from "./constants.js";
+import { DEFAULT_CATALOG_URL, MAX_OUTPUT_TOKENS } from "./constants.js";
 import { displayName, fallbackModels, fetchModels, modelPriceDetail, type HackathonModel } from "./models.js";
 import type { SessionStore } from "./session.js";
 
@@ -36,7 +36,6 @@ interface ChatCompletionChunk {
 }
 
 const CATALOG_TTL_MS = 5 * 60 * 1000;
-const CONSERVATIVE_MAX_OUTPUT_TOKENS = 32768;
 
 export class HackathonModelProvider
   implements vscode.LanguageModelChatProvider<HackathonModelInformation>, vscode.Disposable
@@ -131,7 +130,7 @@ export class HackathonModelProvider
       family: model.id,
       version: "hackathon",
       maxInputTokens: model.context_tokens ?? 128000,
-      maxOutputTokens: CONSERVATIVE_MAX_OUTPUT_TOKENS,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
       tooltip: `${modelPriceDetail(model)}. Billed to ${session.teamName}.`,
       detail: session.teamName,
       capabilities: {

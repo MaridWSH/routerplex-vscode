@@ -12,6 +12,11 @@ export const HACKATHON_ENV_KEY = "ROUTERPLEX_HACKATHON_API_KEY";
 
 export const CREDIT_REFRESH_MS = 30_000;
 
+// The catalog does not publish a per-model output ceiling, so every managed
+// tool advertises the same conservative cap. OpenCode rejects a whole config
+// file when a model carries "limit" without both halves of the pair.
+export const MAX_OUTPUT_TOKENS = 32768;
+
 export const CODEX_MANAGED_STATE_KEY = "routerplex.hackathon.codex.managed";
 export const CODEX_PREVIOUS_ROOT_STATE_KEY = "routerplex.hackathon.codex.previousRootAssignments";
 export const CODEX_LAST_MODEL_STATE_KEY = "routerplex.hackathon.codex.lastModel";

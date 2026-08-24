@@ -73,3 +73,28 @@ test("resolves OpenCode's XDG paths on Windows and macOS", () => {
     authPath: "/Users/ada/.local/share/opencode/auth.json",
   });
 });
+
+test("every model limit carries context and output together", () => {
+  // OpenCode validates the whole file: a limit block missing "output" makes it
+  // reject the configuration outright, so no hackathon model loads at all.
+  const configured = applyOpenCodeConfig("", "opencode.json", models, "https://hackathon.routerplex.com/v1");
+  const providers = parseJsonObject(configured, "opencode.json").provider as Record<string, Record<string, unknown>>;
+  const entries = Object.entries(providers[OPENCODE_PROVIDER_ID]!.models as Record<string, { limit?: Record<string, number> }>);
+
+  assert.ok(entries.length > 0);
+  for (const [id, model] of entries) {
+    if (!model.limit) continue;
+    assert.equal(typeof model.limit.context, "number", `${id} is missing limit.context`);
+    assert.equal(typeof model.limit.output, "number", `${id} is missing limit.output`);
+  }
+});
+
+test("omits the limit block entirely for a model with no known context window", () => {
+  // A half-populated limit is invalid; no limit at all is accepted.
+  const unknown = fallbackModels(["some-new-model"]);
+  const configured = applyOpenCodeConfig("", "opencode.json", unknown, "https://hackathon.routerplex.com/v1");
+  const providers = parseJsonObject(configured, "opencode.json").provider as Record<string, Record<string, unknown>>;
+  const entry = (providers[OPENCODE_PROVIDER_ID]!.models as Record<string, object>)["some-new-model"]!;
+
+  assert.equal(Object.prototype.hasOwnProperty.call(entry, "limit"), false);
+});
