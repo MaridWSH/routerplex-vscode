@@ -8,15 +8,16 @@ import {
   type InternalChatMessage,
   type InternalChatPart,
 } from "./chatProtocol.js";
-import { DEFAULT_API_BASE_URL, DEFAULT_CATALOG_URL } from "./constants.js";
-import { displayName, fallbackModels, fetchModels, modelPriceDetail, type RouterPlexModel } from "./models.js";
+import { DEFAULT_CATALOG_URL } from "./constants.js";
+import { displayName, fallbackModels, fetchModels, modelPriceDetail, type HackathonModel } from "./models.js";
+import type { SessionStore } from "./session.js";
 
 export interface ApiKeySource {
   getOrPrompt(): Promise<string | undefined>;
 }
 
-interface RouterPlexModelInformation extends vscode.LanguageModelChatInformation {
-  routerPlexModel: RouterPlexModel;
+interface HackathonModelInformation extends vscode.LanguageModelChatInformation {
+  hackathonModel: HackathonModel;
 }
 
 interface ChatCompletionChunk {
@@ -37,17 +38,17 @@ interface ChatCompletionChunk {
 const CATALOG_TTL_MS = 5 * 60 * 1000;
 const CONSERVATIVE_MAX_OUTPUT_TOKENS = 32768;
 
-export class RouterPlexLanguageModelProvider
-  implements vscode.LanguageModelChatProvider<RouterPlexModelInformation>, vscode.Disposable
+export class HackathonModelProvider
+  implements vscode.LanguageModelChatProvider<HackathonModelInformation>, vscode.Disposable
 {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
-  private cachedModels: RouterPlexModel[] | undefined;
+  private cachedModels: HackathonModel[] | undefined;
   private cacheExpiresAt = 0;
   private refreshPromise: Promise<boolean> | undefined;
 
   readonly onDidChangeLanguageModelChatInformation = this.changeEmitter.event;
 
-  constructor(private readonly apiKeys: ApiKeySource) {}
+  constructor(private readonly sessions: SessionStore) {}
 
   dispose(): void {
     this.changeEmitter.dispose();
@@ -71,18 +72,31 @@ export class RouterPlexLanguageModelProvider
     }
   }
 
-  async listModels(force = false): Promise<RouterPlexModel[]> {
+  async listModels(force = false): Promise<HackathonModel[]> {
     if (force) await this.refreshFromCatalog(true);
     return this.models();
   }
 
   private configuration(): vscode.WorkspaceConfiguration {
-    return vscode.workspace.getConfiguration("routerplex");
+    return vscode.workspace.getConfiguration("routerplexHackathon");
+  }
+
+  private async roster(): Promise<string[]> {
+    return (await this.sessions.get())?.models ?? [];
   }
 
   private async fetchAndCacheModels(): Promise<boolean> {
+    const roster = await this.roster();
+    if (roster.length === 0) {
+      const changed = this.cachedModels !== undefined && this.cachedModels.length > 0;
+      this.cachedModels = [];
+      this.cacheExpiresAt = Date.now() + CATALOG_TTL_MS;
+      if (changed) this.changeEmitter.fire();
+      return changed;
+    }
+
     const catalogUrl = this.configuration().get<string>("catalogUrl", DEFAULT_CATALOG_URL);
-    const models = await fetchModels(catalogUrl);
+    const models = await fetchModels(catalogUrl, roster);
     const changed = JSON.stringify(models) !== JSON.stringify(this.cachedModels);
     this.cachedModels = models;
     this.cacheExpiresAt = Date.now() + CATALOG_TTL_MS;
@@ -90,15 +104,17 @@ export class RouterPlexLanguageModelProvider
     return changed;
   }
 
-  private async models(): Promise<RouterPlexModel[]> {
+  private async models(): Promise<HackathonModel[]> {
     if (this.cachedModels && Date.now() < this.cacheExpiresAt) return this.cachedModels;
     try {
       await this.refreshFromCatalog();
     } catch {
-      if (!this.cachedModels) this.cachedModels = fallbackModels();
+      // Venue wifi lost the catalog. The roster still came from the console, so
+      // show it with baked-in pricing rather than an empty model picker.
+      if (!this.cachedModels) this.cachedModels = fallbackModels(await this.roster());
       this.cacheExpiresAt = Date.now() + CATALOG_TTL_MS;
     }
-    const models = this.cachedModels ?? fallbackModels();
+    const models = this.cachedModels ?? fallbackModels(await this.roster());
     this.cachedModels = models;
     return models;
   }
@@ -106,33 +122,37 @@ export class RouterPlexLanguageModelProvider
   async provideLanguageModelChatInformation(
     _options: vscode.PrepareLanguageModelChatModelOptions,
     _token: vscode.CancellationToken,
-  ): Promise<RouterPlexModelInformation[]> {
+  ): Promise<HackathonModelInformation[]> {
+    const session = await this.sessions.get();
+    if (!session) return [];
     return (await this.models()).map((model) => ({
       id: model.id,
       name: displayName(model.id),
       family: model.id,
-      version: "routerplex",
+      version: "hackathon",
       maxInputTokens: model.context_tokens ?? 128000,
       maxOutputTokens: CONSERVATIVE_MAX_OUTPUT_TOKENS,
-      tooltip: `${modelPriceDetail(model)}. Billed through RouterPlex.`,
-      detail: model.provider,
+      tooltip: `${modelPriceDetail(model)}. Billed to ${session.teamName}.`,
+      detail: session.teamName,
       capabilities: {
         imageInput: false,
         toolCalling: true,
       },
-      routerPlexModel: model,
+      hackathonModel: model,
     }));
   }
 
   async provideLanguageModelChatResponse(
-    model: RouterPlexModelInformation,
+    model: HackathonModelInformation,
     messages: readonly vscode.LanguageModelChatRequestMessage[],
     options: vscode.ProvideLanguageModelChatResponseOptions,
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken,
   ): Promise<void> {
-    const apiKey = await this.apiKeys.getOrPrompt();
-    if (!apiKey) throw vscode.LanguageModelError.NoPermissions("A RouterPlex API key is required.");
+    const session = await this.sessions.get();
+    if (!session) {
+      throw vscode.LanguageModelError.NoPermissions("Join the hackathon with your team code first.");
+    }
 
     const request: OpenAiChatRequest = {
       model: model.id,
@@ -150,34 +170,30 @@ export class RouterPlexLanguageModelProvider
         },
       }));
       request.tool_choice = options.toolMode === vscode.LanguageModelChatToolMode.Required ? "required" : "auto";
-
-      // GPT-5.6 Chat Completions supports function tools with effective reasoning "none".
-      if (model.id.startsWith("gpt-5.6")) request.reasoning_effort = "none";
     }
 
     const controller = new AbortController();
     const cancellation = token.onCancellationRequested(() => controller.abort());
     try {
-      const baseUrl = normalizeBaseUrl(this.configuration().get<string>("apiBaseUrl", DEFAULT_API_BASE_URL));
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      const response = await fetch(`${normalizeBaseUrl(session.baseUrl)}/chat/completions`, {
         method: "POST",
         headers: {
           Accept: "text/event-stream",
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${session.apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(request),
         signal: controller.signal,
       });
 
-      if (!response.ok) throw await languageModelError(response);
-      if (!response.body) throw new Error("RouterPlex returned an empty streaming response.");
+      if (!response.ok) throw await gatewayError(response);
+      if (!response.body) throw new Error("The hackathon gateway returned an empty streaming response.");
 
       const toolCalls = new ToolCallAccumulator();
       for await (const event of parseSseData(response.body)) {
         if (event === "[DONE]") break;
         const chunk = JSON.parse(event) as ChatCompletionChunk;
-        if (chunk.error) throw new Error(chunk.error.message || "RouterPlex returned a streaming error.");
+        if (chunk.error) throw new Error(chunk.error.message || "The hackathon gateway returned a streaming error.");
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         if (choice.delta?.content) progress.report(new vscode.LanguageModelTextPart(choice.delta.content));
@@ -193,7 +209,7 @@ export class RouterPlexLanguageModelProvider
   }
 
   async provideTokenCount(
-    _model: RouterPlexModelInformation,
+    _model: HackathonModelInformation,
     value: string | vscode.LanguageModelChatRequestMessage,
     _token: vscode.CancellationToken,
   ): Promise<number> {
@@ -223,7 +239,7 @@ function toInternalMessage(message: vscode.LanguageModelChatRequestMessage): Int
   };
 }
 
-async function languageModelError(response: Response): Promise<Error> {
+async function gatewayError(response: Response): Promise<Error> {
   let detail = "";
   try {
     const body = (await response.json()) as { error?: { message?: string }; detail?: string };
@@ -231,7 +247,10 @@ async function languageModelError(response: Response): Promise<Error> {
   } catch {
     detail = "";
   }
-  const message = detail || `RouterPlex returned HTTP ${response.status}.`;
+  if (/budget/i.test(detail)) {
+    return vscode.LanguageModelError.Blocked(`${detail} Ask an organiser to top the team up.`);
+  }
+  const message = detail || `The hackathon gateway returned HTTP ${response.status}.`;
   if (response.status === 401 || response.status === 403) return vscode.LanguageModelError.NoPermissions(message);
   if (response.status === 402 || response.status === 429) return vscode.LanguageModelError.Blocked(message);
   if (response.status === 404) return vscode.LanguageModelError.NotFound(message);

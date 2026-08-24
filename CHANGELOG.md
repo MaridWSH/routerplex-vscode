@@ -1,36 +1,53 @@
 # Changelog
 
-## 0.1.4
+## 1.4.0
 
-- Redesign the control panel as a branded webview using the product palette.
-- Show API-key, Codex, current-model, and backup status in a compact status surface.
-- Add search to the live RouterPlex catalog.
+- Added one-click OpenCode configuration with a dedicated global provider,
+  team model roster, official credential-store shape, JSONC-safe merging, and
+  backups.
+- Added one-click Claude Code and Claude Desktop 3P setup for Windows and macOS,
+  including exact hackathon model IDs and the Anthropic-compatible gateway URL.
+- Reclaimed keys and refreshed model rosters now stay synchronized across all
+  configured tools.
+- Sign-out restores previous OpenCode and Claude settings and removes the
+  managed hackathon credentials.
 
-## 0.1.3
+## 1.3.0
 
-- Add a native RouterPlex Activity Bar control panel without a webview.
-- Show API-key, Codex, current-model, and backup status in the side panel.
-- List the live RouterPlex catalog and switch Codex models with one click.
-- Add panel actions for setup, API keys, connection testing, refresh, updates, config, settings, and removal.
-- Remove the dashboard command from the extension UI.
+- The panel shows the challenge your team was dealt, with the brief and the
+  RouterPlex angle, and a button through to the team board.
+- New team board at `/participations`: everyone's spend, the team pool, the
+  idea, and the judging rubric as a checklist your team ticks off together.
+- The idea updates itself if an organiser re-deals, without rejoining.
 
-## 0.1.2
+## 1.2.0
 
-- Refresh the RouterPlex model catalog automatically every five minutes and when VS Code regains focus.
-- Keep the last known model catalog available during temporary refresh failures.
-- Check GitHub Releases for extension updates, install matching VSIX assets automatically, and prompt to reload.
-- Add configurable model-refresh and extension-update intervals.
+- The console moved to `https://hackathon.routerplex.com`, so everything a
+  participant touches - the download page, the team code, credit, and the
+  gateway itself - is now one hostname. The old `hack.90days.online` address
+  redirects there.
 
-## 0.1.1
+## 1.1.0
 
-- Configure Codex with `env_key = "ROUTERPLEX_API_KEY"`.
-- Export the Codex API key through the active shell profile or Windows user environment.
-- Remove the file-backed extension-storage requirement and migrate legacy helper configuration.
-- Add the RouterPlex logo to extension metadata.
+Rebuilt on the RouterPlex Models architecture so the hackathon build looks and
+behaves like the public extension, scoped to hackathon models and the hackathon
+gateway.
 
-## 0.1.0
+- Codex setup: managed `[model_providers.routerplex-hackathon]` block, a
+  `config.toml` backup before every write, and `ROUTERPLEX_HACKATHON_API_KEY`
+  exported to the shell profile or the Windows user environment.
+- Control Panel in the RouterPlex visual language, with team and personal credit
+  meters, the model list, quick actions, and utilities.
+- Model rows now carry provider, context, and price, pulled from the public
+  catalog and filtered to the models the console granted your team.
+- Command palette coverage: setup, join, manage connection, configure Codex,
+  test connection, refresh models, refresh credit, copy key, check for updates,
+  open Codex configuration, settings, sign out.
+- Auto update from GitHub hackathon releases, which are published under their own
+  `hackathon-v*` tag so the public extension is unaffected.
+- Sign out now also removes the Codex provider table and the exported variable.
 
-- Add RouterPlex models to VS Code's native language-model picker.
-- Configure RouterPlex as a Codex custom model provider.
-- Store the VS Code API key in SecretStorage.
-- Add connection testing, model refresh, and configuration removal commands.
+## 1.0.0
+
+First build: team code, seat claim, hackathon models in VS Code Chat, and a
+credit readout.

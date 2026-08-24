@@ -10,7 +10,10 @@ const options = {
   platform: "node",
   target: "node20",
   outfile: "dist/extension.js",
-  sourcemap: true,
+  // Source maps only while developing: the shipped VSIX travels over venue wifi
+  // and through a 100 KB SSM document on the way to the console host.
+  sourcemap: watch,
+  minify: !watch,
   logLevel: "info",
 };
 

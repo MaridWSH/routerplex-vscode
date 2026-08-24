@@ -1,37 +1,61 @@
 import * as vscode from "vscode";
 
+import { validateApiKey } from "./api.js";
+import {
+  configureClaude,
+  ensureClaudeDesktopStopped,
+  removeClaudeConfiguration,
+} from "./claude.js";
 import { configureCodex, openCodexConfiguration, removeCodexConfiguration } from "./codex.js";
 import {
+  CLAUDE_MANAGED_STATE_KEY,
   CODEX_LAST_MODEL_STATE_KEY,
   CODEX_MANAGED_STATE_KEY,
-  DEFAULT_API_BASE_URL,
-  DEFAULT_CATALOG_URL,
   DEFAULT_CODEX_MODEL,
-  ROUTERPLEX_VENDOR,
+  HACKATHON_ENV_KEY,
+  HACKATHON_VENDOR,
+  OPENCODE_MANAGED_STATE_KEY,
 } from "./constants.js";
-import { CredentialManager } from "./credentials.js";
-import { fetchModels, modelPriceDetail, type RouterPlexModel } from "./models.js";
-import { RouterPlexLanguageModelProvider } from "./provider.js";
-import { RouterPlexPanelProvider } from "./sidebar.js";
+import type { Credit } from "./console.js";
+import { modelPriceDetail, type HackathonModel } from "./models.js";
+import { configureOpenCode, removeOpenCodeConfiguration } from "./opencode.js";
+import { HackathonModelProvider } from "./provider.js";
+import { SessionStore } from "./session.js";
+import { HackathonPanelProvider } from "./sidebar.js";
 import { ExtensionUpdateService } from "./updater.js";
 
-const DEFAULT_MODEL_REFRESH_INTERVAL_MINUTES = 5;
-
 interface ModelQuickPickItem extends vscode.QuickPickItem {
-  model: RouterPlexModel;
+  model: HackathonModel;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  let provider: RouterPlexLanguageModelProvider;
-  let panel: RouterPlexPanelProvider | undefined;
-  const credentials = new CredentialManager(context, () => {
+  let provider: HackathonModelProvider;
+  let panel: HackathonPanelProvider | undefined;
+
+  const sessions = new SessionStore(context, () => {
     provider.refresh();
     void panel?.refresh();
   });
-  await credentials.restoreEnvironment();
-  provider = new RouterPlexLanguageModelProvider(credentials);
+  await sessions.restoreEnvironment();
+  provider = new HackathonModelProvider(sessions);
   const updater = new ExtensionUpdateService(context);
-  panel = new RouterPlexPanelProvider(context, credentials, provider);
+
+  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  status.command = "routerplexHackathon.openPanel";
+  const showCredit = (credit: Credit | undefined): void => {
+    if (!credit) {
+      status.hide();
+      return;
+    }
+    const left = Math.max(0, credit.member.budget - credit.member.spend);
+    status.text = `$(rocket) $${left.toFixed(2)} left`;
+    status.tooltip =
+      `${credit.member.name}: $${credit.member.spend.toFixed(2)} of $${credit.member.budget.toFixed(2)}\n` +
+      `${credit.team.name}: $${credit.team.spend.toFixed(2)} of $${credit.team.budget.toFixed(2)}`;
+    status.show();
+  };
+
+  panel = new HackathonPanelProvider(context, sessions, provider, showCredit);
 
   const runAndRefresh = (action: () => Promise<unknown>) =>
     runCommand(async () => {
@@ -43,99 +67,100 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
 
   context.subscriptions.push(
+    status,
     provider,
     updater,
     panel,
-    vscode.window.registerWebviewViewProvider("routerplex.controlPanel", panel, {
+    vscode.window.registerWebviewViewProvider(HackathonPanelProvider.viewId, panel, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
     provider.onDidChangeLanguageModelChatInformation(() => void panel?.refresh()),
-    vscode.lm.registerLanguageModelChatProvider(ROUTERPLEX_VENDOR, provider),
-    vscode.commands.registerCommand("routerplex.openPanel", () =>
-      vscode.commands.executeCommand("workbench.view.extension.routerplex"),
+    vscode.lm.registerLanguageModelChatProvider(HACKATHON_VENDOR, provider),
+    vscode.commands.registerCommand("routerplexHackathon.openPanel", () =>
+      vscode.commands.executeCommand("workbench.view.extension.routerplexHackathon"),
     ),
-    vscode.commands.registerCommand("routerplex.setup", () => runAndRefresh(() => setup(context, credentials, provider))),
-    vscode.commands.registerCommand("routerplex.manageConnection", () =>
-      runAndRefresh(() => manageConnection(context, credentials, provider)),
+    vscode.commands.registerCommand("routerplexHackathon.setup", () =>
+      runAndRefresh(() => setup(context, sessions, provider)),
     ),
-    vscode.commands.registerCommand("routerplex.configureApiKey", () =>
+    vscode.commands.registerCommand("routerplexHackathon.join", () =>
       runAndRefresh(async () => {
-        const key = await credentials.promptAndStore();
-        if (key) vscode.window.showInformationMessage("RouterPlex API key saved securely in VS Code.");
+        const session = await sessions.join();
+        if (session) {
+          provider.refresh();
+          await panel?.refreshCredit();
+          vscode.window.showInformationMessage(
+            `You are on ${session.teamName}. ${session.models.length} hackathon models are in the chat model picker.`,
+          );
+        }
       }),
     ),
-    vscode.commands.registerCommand("routerplex.configureCodex", () =>
-      runAndRefresh(() => configureCodexCommand(context, credentials)),
+    vscode.commands.registerCommand("routerplexHackathon.manageConnection", () =>
+      runAndRefresh(() => manageConnection(context, sessions)),
     ),
-    vscode.commands.registerCommand("routerplex.configureCodexModel", (modelId: unknown) =>
+    vscode.commands.registerCommand("routerplexHackathon.configureCodex", () =>
+      runAndRefresh(() => configureCodexCommand(context, sessions, provider)),
+    ),
+    vscode.commands.registerCommand("routerplexHackathon.configureOpenCode", () =>
+      runAndRefresh(() => configureOpenCodeCommand(context, sessions, provider)),
+    ),
+    vscode.commands.registerCommand("routerplexHackathon.configureClaude", () =>
+      runAndRefresh(() => configureClaudeCommand(context, sessions, provider)),
+    ),
+    vscode.commands.registerCommand("routerplexHackathon.configureCodexModel", (modelId: unknown) =>
       runAndRefresh(async () => {
-        if (typeof modelId !== "string" || !modelId) throw new Error("A RouterPlex model must be selected.");
-        await configureCodexCommand(context, credentials, undefined, modelId);
+        if (typeof modelId !== "string" || !modelId) throw new Error("A hackathon model must be selected.");
+        await configureCodexCommand(context, sessions, provider, undefined, modelId);
       }),
     ),
-    vscode.commands.registerCommand("routerplex.testConnection", () =>
+    vscode.commands.registerCommand("routerplexHackathon.testConnection", () =>
       runAndRefresh(async () => {
+        const session = await sessions.get();
+        if (!session) throw new Error("Join the hackathon with your team code first.");
         await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: "Testing RouterPlex connection" },
-          () => credentials.test(),
+          { location: vscode.ProgressLocation.Notification, title: "Testing the hackathon gateway" },
+          () => validateApiKey(session.baseUrl, session.apiKey),
         );
-        vscode.window.showInformationMessage("RouterPlex connection succeeded.");
+        await panel?.refreshCredit();
+        vscode.window.showInformationMessage(`Your key works. Requests bill to ${session.teamName}.`);
       }),
     ),
-    vscode.commands.registerCommand("routerplex.refreshModels", () =>
+    vscode.commands.registerCommand("routerplexHackathon.refreshModels", () =>
       runAndRefresh(async () => {
-        const changed = await provider.refreshFromCatalog(true);
+        const rosterChanged = await sessions.refreshRoster();
+        const catalogChanged = await provider.refreshFromCatalog(true);
         vscode.window.showInformationMessage(
-          changed ? "RouterPlex model catalog updated." : "RouterPlex model catalog is already current.",
+          rosterChanged || catalogChanged ? "Hackathon model list updated." : "Hackathon model list is already current.",
         );
       }),
     ),
-    vscode.commands.registerCommand("routerplex.checkForUpdates", () => runAndRefresh(() => updater.check(true))),
-    vscode.commands.registerCommand("routerplex.openCodexConfig", () => runAndRefresh(openCodexConfiguration)),
-    vscode.commands.registerCommand("routerplex.openSettings", () =>
-      vscode.commands.executeCommand("workbench.action.openSettings", "@ext:routerplex.routerplex-models"),
+    vscode.commands.registerCommand("routerplexHackathon.refresh", () =>
+      runCommand(() => panel!.refreshCredit(true)),
     ),
-    vscode.commands.registerCommand("routerplex.removeConfiguration", () =>
-      runAndRefresh(() => removeConfiguration(context, credentials, provider)),
+    vscode.commands.registerCommand("routerplexHackathon.copyKey", () =>
+      runCommand(async () => {
+        const key = await sessions.apiKey();
+        if (!key) throw new Error("Join the hackathon with your team code first.");
+        await vscode.env.clipboard.writeText(key);
+        vscode.window.showInformationMessage("Your hackathon API key is on the clipboard.");
+      }),
     ),
-    startCatalogRefresh(provider),
+    vscode.commands.registerCommand("routerplexHackathon.openChat", () =>
+      vscode.commands.executeCommand("workbench.action.chat.open"),
+    ),
+    vscode.commands.registerCommand("routerplexHackathon.checkForUpdates", () =>
+      runAndRefresh(() => updater.check(true)),
+    ),
+    vscode.commands.registerCommand("routerplexHackathon.openCodexConfig", () =>
+      runAndRefresh(openCodexConfiguration),
+    ),
+    vscode.commands.registerCommand("routerplexHackathon.openSettings", () =>
+      vscode.commands.executeCommand("workbench.action.openSettings", "@ext:routerplex.routerplex-hackathon"),
+    ),
+    vscode.commands.registerCommand("routerplexHackathon.signOut", () =>
+      runAndRefresh(() => signOut(context, sessions, provider, showCredit)),
+    ),
   );
   updater.start();
-}
-
-function startCatalogRefresh(provider: RouterPlexLanguageModelProvider): vscode.Disposable {
-  let timer: ReturnType<typeof setInterval> | undefined;
-
-  const refresh = (force: boolean) => {
-    void provider.refreshFromCatalog(force).catch(() => undefined);
-  };
-  const schedule = () => {
-    if (timer) clearInterval(timer);
-    const configured = vscode.workspace
-      .getConfiguration("routerplex")
-      .get<number>("modelRefreshIntervalMinutes", DEFAULT_MODEL_REFRESH_INTERVAL_MINUTES);
-    const interval = Math.max(1, configured) * 60 * 1000;
-    timer = setInterval(() => refresh(true), interval);
-  };
-
-  const focusSubscription = vscode.window.onDidChangeWindowState((state) => {
-    if (state.focused) refresh(false);
-  });
-  const configurationSubscription = vscode.workspace.onDidChangeConfiguration((event) => {
-    if (event.affectsConfiguration("routerplex.catalogUrl")) {
-      provider.refresh();
-      refresh(true);
-    }
-    if (event.affectsConfiguration("routerplex.modelRefreshIntervalMinutes")) schedule();
-  });
-
-  schedule();
-  refresh(false);
-  return new vscode.Disposable(() => {
-    if (timer) clearInterval(timer);
-    focusSubscription.dispose();
-    configurationSubscription.dispose();
-  });
 }
 
 async function runCommand(action: () => Promise<unknown>): Promise<void> {
@@ -143,22 +168,23 @@ async function runCommand(action: () => Promise<unknown>): Promise<void> {
     await action();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await vscode.window.showErrorMessage(`RouterPlex: ${message}`);
+    await vscode.window.showErrorMessage(`Hackathon: ${message}`);
   }
 }
 
+/** One command for a participant who just installed: join, wire Codex, reload. */
 async function setup(
   context: vscode.ExtensionContext,
-  credentials: CredentialManager,
-  provider: RouterPlexLanguageModelProvider,
+  sessions: SessionStore,
+  provider: HackathonModelProvider,
 ): Promise<void> {
-  const apiKey = (await credentials.get()) ?? (await credentials.promptAndStore());
-  if (!apiKey) return;
-  await configureCodexCommand(context, credentials, apiKey);
+  const session = (await sessions.get()) ?? (await sessions.join());
+  if (!session) return;
+  await configureCodexCommand(context, sessions, provider, session.apiKey);
   provider.refresh();
 
   const action = await vscode.window.showInformationMessage(
-    "RouterPlex is available in VS Code Chat and configured for Codex. Reload VS Code before opening a new Codex chat.",
+    "The hackathon models are in VS Code Chat and Codex is configured. Reload VS Code before opening a new Codex chat.",
     "Reload VS Code",
   );
   if (action === "Reload VS Code") await vscode.commands.executeCommand("workbench.action.reloadWindow");
@@ -166,37 +192,88 @@ async function setup(
 
 async function configureCodexCommand(
   context: vscode.ExtensionContext,
-  credentials: CredentialManager,
+  sessions: SessionStore,
+  provider: HackathonModelProvider,
   existingKey?: string,
   selectedModelId?: string,
 ): Promise<void> {
-  const apiKey = existingKey ?? (await credentials.getOrPrompt());
+  const session = await sessions.get();
+  const apiKey = existingKey ?? session?.apiKey ?? (await sessions.getOrPrompt());
   if (!apiKey) return;
 
   if (!context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false)) {
     const confirmation = await vscode.window.showWarningMessage(
-      "Codex reads ROUTERPLEX_API_KEY from its environment. RouterPlex will export this key in your shell profile and back up config.toml.",
+      `Codex reads ${HACKATHON_ENV_KEY} from its environment. This extension will export that key in your shell profile and back up config.toml first.`,
       { modal: true },
       "Continue",
     );
     if (confirmation !== "Continue") return;
   }
 
-  const modelId = selectedModelId ?? (await pickCodexModel(context))?.id;
+  const modelId = selectedModelId ?? (await pickCodexModel(context, provider))?.id;
   if (!modelId) return;
-  const baseUrl = vscode.workspace.getConfiguration("routerplex").get<string>("apiBaseUrl", DEFAULT_API_BASE_URL);
+  const baseUrl = await sessions.baseUrl();
   const result = await configureCodex(context, apiKey, modelId, baseUrl);
   await vscode.window.showInformationMessage(
-    `Codex now uses ${modelId} through RouterPlex. ROUTERPLEX_API_KEY was exported. Backup: ${result.backupPath}`,
+    `Codex now uses ${modelId} on the hackathon gateway. ${HACKATHON_ENV_KEY} was exported. Backup: ${result.backupPath}`,
   );
 }
 
-async function pickCodexModel(context: vscode.ExtensionContext): Promise<RouterPlexModel | undefined> {
-  const catalogUrl = vscode.workspace.getConfiguration("routerplex").get<string>("catalogUrl", DEFAULT_CATALOG_URL);
-  const models = await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Window, title: "Loading RouterPlex models" },
-    () => fetchModels(catalogUrl),
+async function configureOpenCodeCommand(
+  context: vscode.ExtensionContext,
+  sessions: SessionStore,
+  provider: HackathonModelProvider,
+): Promise<void> {
+  const session = await sessions.get();
+  if (!session) throw new Error("Join the hackathon with your team code first.");
+  if (!context.globalState.get<boolean>(OPENCODE_MANAGED_STATE_KEY, false)) {
+    const confirmation = await vscode.window.showWarningMessage(
+      "This extension will add a RouterPlex Hackathon provider to your global OpenCode configuration and credential store. Existing providers are preserved and both files are backed up.",
+      { modal: true },
+      "Configure OpenCode",
+    );
+    if (confirmation !== "Configure OpenCode") return;
+  }
+  const models = await provider.listModels(false);
+  const result = await configureOpenCode(context, session.apiKey, models, session.baseUrl);
+  await vscode.window.showInformationMessage(
+    `OpenCode is ready with ${models.length} hackathon models. Configuration: ${result.configPath}`,
   );
+}
+
+async function configureClaudeCommand(
+  context: vscode.ExtensionContext,
+  sessions: SessionStore,
+  provider: HackathonModelProvider,
+): Promise<void> {
+  const session = await sessions.get();
+  if (!session) throw new Error("Join the hackathon with your team code first.");
+  await ensureClaudeDesktopStopped();
+  if (!context.globalState.get<boolean>(CLAUDE_MANAGED_STATE_KEY, false)) {
+    const confirmation = await vscode.window.showWarningMessage(
+      "This extension will configure Claude Code and Claude Desktop third-party mode with your hackathon key. Existing JSON settings are preserved and changed files are backed up.",
+      { modal: true },
+      "Configure Claude",
+    );
+    if (confirmation !== "Configure Claude") return;
+  }
+  const models = await provider.listModels(false);
+  const result = await configureClaude(context, session.apiKey, models, session.baseUrl);
+  await vscode.window.showInformationMessage(
+    `Claude Code and Claude Desktop are ready with ${models.length} hackathon models. ${result.changedFiles.length} configuration files were updated. Reopen Claude Desktop to load the profile.`,
+  );
+}
+
+async function pickCodexModel(
+  context: vscode.ExtensionContext,
+  provider: HackathonModelProvider,
+): Promise<HackathonModel | undefined> {
+  const models = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Window, title: "Loading hackathon models" },
+    () => provider.listModels(false),
+  );
+  if (models.length === 0) throw new Error("No hackathon models are available yet. Join your team first.");
+
   const lastModel = context.globalState.get<string>(CODEX_LAST_MODEL_STATE_KEY, DEFAULT_CODEX_MODEL);
   const items: ModelQuickPickItem[] = models.map((model) => ({
     label: model.id,
@@ -205,7 +282,7 @@ async function pickCodexModel(context: vscode.ExtensionContext): Promise<RouterP
     model,
   }));
   const selected = await vscode.window.showQuickPick(items, {
-    title: "Choose the default RouterPlex model for Codex",
+    title: "Choose the Codex model for the hackathon",
     placeHolder: DEFAULT_CODEX_MODEL,
     matchOnDescription: true,
     matchOnDetail: true,
@@ -214,55 +291,71 @@ async function pickCodexModel(context: vscode.ExtensionContext): Promise<RouterP
   return selected?.model;
 }
 
-async function manageConnection(
-  context: vscode.ExtensionContext,
-  credentials: CredentialManager,
-  provider: RouterPlexLanguageModelProvider,
-): Promise<void> {
-  const hasKey = Boolean(await credentials.get());
+async function manageConnection(context: vscode.ExtensionContext, sessions: SessionStore): Promise<void> {
+  const joined = Boolean(await sessions.get());
   const codexManaged = context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false);
+  const openCodeManaged = context.globalState.get<boolean>(OPENCODE_MANAGED_STATE_KEY, false);
+  const claudeManaged = context.globalState.get<boolean>(CLAUDE_MANAGED_STATE_KEY, false);
   const choice = await vscode.window.showQuickPick(
     [
-      { label: "$(layout-sidebar-left) Open RouterPlex panel", command: "routerplex.openPanel" },
-      { label: hasKey ? "$(key) Replace API key" : "$(key) Configure API key", command: "routerplex.configureApiKey" },
-      {
-        label: codexManaged ? "$(settings-gear) Change Codex model" : "$(settings-gear) Configure Codex",
-        command: "routerplex.configureCodex",
-      },
-      { label: "$(pulse) Test connection", command: "routerplex.testConnection" },
-      { label: "$(refresh) Refresh models", command: "routerplex.refreshModels" },
-      { label: "$(cloud-download) Check for updates", command: "routerplex.checkForUpdates" },
-      { label: "$(file-code) Open Codex configuration", command: "routerplex.openCodexConfig" },
-      { label: "$(settings) Open RouterPlex settings", command: "routerplex.openSettings" },
-      ...(hasKey || codexManaged
-        ? [{ label: "$(trash) Remove RouterPlex configuration", command: "routerplex.removeConfiguration" }]
+      { label: "$(layout-sidebar-left) Open the hackathon panel", command: "routerplexHackathon.openPanel" },
+      ...(joined
+        ? [
+            {
+              label: codexManaged ? "$(settings-gear) Change Codex model" : "$(settings-gear) Configure Codex",
+              command: "routerplexHackathon.configureCodex",
+            },
+            {
+              label: openCodeManaged ? "$(check) Reconfigure OpenCode" : "$(terminal) Configure OpenCode",
+              command: "routerplexHackathon.configureOpenCode",
+            },
+            {
+              label: claudeManaged ? "$(check) Reconfigure Claude" : "$(desktop-download) Configure Claude",
+              command: "routerplexHackathon.configureClaude",
+            },
+            { label: "$(pulse) Test connection", command: "routerplexHackathon.testConnection" },
+            { label: "$(key) Copy API key", command: "routerplexHackathon.copyKey" },
+            { label: "$(refresh) Refresh models", command: "routerplexHackathon.refreshModels" },
+          ]
+        : [{ label: "$(rocket) Join with a team code", command: "routerplexHackathon.join" }]),
+      { label: "$(cloud-download) Check for updates", command: "routerplexHackathon.checkForUpdates" },
+      { label: "$(file-code) Open Codex configuration", command: "routerplexHackathon.openCodexConfig" },
+      { label: "$(settings) Hackathon settings", command: "routerplexHackathon.openSettings" },
+      ...(joined || codexManaged || openCodeManaged || claudeManaged
+        ? [{ label: "$(sign-out) Sign out of the hackathon", command: "routerplexHackathon.signOut" }]
         : []),
     ],
-    { title: "Manage RouterPlex", placeHolder: "Choose an action" },
+    { title: "Manage the hackathon connection", placeHolder: "Choose an action" },
   );
   if (choice) await vscode.commands.executeCommand(choice.command);
-  provider.refresh();
 }
 
-async function removeConfiguration(
+async function signOut(
   context: vscode.ExtensionContext,
-  credentials: CredentialManager,
-  provider: RouterPlexLanguageModelProvider,
+  sessions: SessionStore,
+  provider: HackathonModelProvider,
+  showCredit: (credit: Credit | undefined) => void,
 ): Promise<void> {
   const confirmation = await vscode.window.showWarningMessage(
-    "Remove the RouterPlex API key, managed environment export, and RouterPlex entries from Codex config.toml?",
+    "Sign out on this machine? Your hackathon credentials are removed from Codex, OpenCode, Claude Code, and Claude Desktop. Your previous settings are restored, and your team code still works if you come back.",
     { modal: true },
-    "Remove",
+    "Sign out",
   );
-  if (confirmation !== "Remove") return;
+  if (confirmation !== "Sign out") return;
 
-  const result = await removeCodexConfiguration(context);
-  await credentials.clear();
+  if (context.globalState.get<boolean>(CLAUDE_MANAGED_STATE_KEY, false)) await ensureClaudeDesktopStopped();
+  const codexResult = await removeCodexConfiguration(context);
+  const [openCodeBackups, claudeBackups] = await Promise.all([
+    removeOpenCodeConfiguration(context),
+    removeClaudeConfiguration(context),
+  ]);
+  await sessions.clear();
   provider.refresh();
+  showCredit(undefined);
   await vscode.window.showInformationMessage(
-    result.backupPath
-      ? `RouterPlex configuration removed. A backup was saved at ${result.backupPath}.`
-      : "RouterPlex configuration removed.",
+    codexResult.backupPath || openCodeBackups.length || claudeBackups.length
+      ? "Signed out. Managed tool credentials were removed and configuration backups were saved."
+      : "Signed out.",
   );
 }
 

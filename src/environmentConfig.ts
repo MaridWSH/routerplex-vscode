@@ -1,5 +1,5 @@
-export const ENVIRONMENT_START = "# >>> RouterPlex managed environment";
-export const ENVIRONMENT_END = "# <<< RouterPlex managed environment";
+export const ENVIRONMENT_START = "# >>> RouterPlex Hackathon managed environment";
+export const ENVIRONMENT_END = "# <<< RouterPlex Hackathon managed environment";
 
 export type ShellSyntax = "posix" | "fish";
 
@@ -37,11 +37,7 @@ export function applyManagedEnvironment(
 ): string {
   const newline = source.includes("\r\n") ? "\r\n" : "\n";
   const cleaned = removeManagedLines(source.replace(/\r\n/g, "\n").split("\n")).join("\n").trimEnd();
-  const block = [
-    ENVIRONMENT_START,
-    environmentExportLine(variable, value, syntax),
-    ENVIRONMENT_END,
-  ].join("\n");
+  const block = [ENVIRONMENT_START, environmentExportLine(variable, value, syntax), ENVIRONMENT_END].join("\n");
   return `${cleaned ? `${cleaned}\n\n` : ""}${block}\n`.replace(/\n/g, newline);
 }
 

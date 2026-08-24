@@ -1,9 +1,11 @@
 import { parse } from "smol-toml";
 
-import { ROUTERPLEX_CODEX_ENV_KEY } from "./constants.js";
+import { HACKATHON_ENV_KEY } from "./constants.js";
 
-const MANAGED_START = "# >>> RouterPlex managed settings";
-const MANAGED_END = "# <<< RouterPlex managed settings";
+const MANAGED_START = "# >>> RouterPlex Hackathon managed settings";
+const MANAGED_END = "# <<< RouterPlex Hackathon managed settings";
+const PROVIDER_ID = "routerplex-hackathon";
+const PROVIDER_TABLE = `model_providers.${PROVIDER_ID}`;
 const ROOT_KEYS = new Set(["model", "model_provider"]);
 
 export interface CodexProviderOptions {
@@ -43,13 +45,15 @@ function removeManagedBlock(lines: string[]): string[] {
   return result;
 }
 
+// Only this extension's provider table is touched. A participant running the
+// public RouterPlex extension keeps its [model_providers.routerplex] table.
 function removeProviderTables(lines: string[]): string[] {
   const result: string[] = [];
   let skipping = false;
   for (const line of lines) {
     const header = tableHeader(line);
     if (header !== undefined) {
-      skipping = header === "model_providers.routerplex" || header.startsWith("model_providers.routerplex.");
+      skipping = header === PROVIDER_TABLE || header.startsWith(`${PROVIDER_TABLE}.`);
     }
     if (!skipping) result.push(line);
   }
@@ -80,7 +84,7 @@ function compactBlankLines(value: string): string {
   return value.replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export function applyRouterPlexConfig(source: string, options: CodexProviderOptions): ConfigPatchResult {
+export function applyHackathonConfig(source: string, options: CodexProviderOptions): ConfigPatchResult {
   const newline = source.includes("\r\n") ? "\r\n" : "\n";
   const normalized = source.replace(/\r\n/g, "\n");
   const withoutManaged = removeManagedBlock(normalized.split("\n"));
@@ -89,18 +93,19 @@ export function applyRouterPlexConfig(source: string, options: CodexProviderOpti
 
   const rootBlock = [
     MANAGED_START,
-    `model_provider = ${tomlString("routerplex")}`,
+    `model_provider = ${tomlString(PROVIDER_ID)}`,
     `model = ${tomlString(options.model)}`,
     MANAGED_END,
   ].join("\n");
 
+  // wire_api is "chat": the hackathon gateway speaks Chat Completions.
   const providerBlock = [
-    "[model_providers.routerplex]",
-    `name = ${tomlString("RouterPlex")}`,
+    `[${PROVIDER_TABLE}]`,
+    `name = ${tomlString("RouterPlex Hackathon")}`,
     `base_url = ${tomlString(options.baseUrl)}`,
-    `wire_api = ${tomlString("responses")}`,
-    `env_key = ${tomlString(ROUTERPLEX_CODEX_ENV_KEY)}`,
-    `env_key_instructions = ${tomlString(`Export ${ROUTERPLEX_CODEX_ENV_KEY} before starting VS Code or Codex.`)}`,
+    `wire_api = ${tomlString("chat")}`,
+    `env_key = ${tomlString(HACKATHON_ENV_KEY)}`,
+    `env_key_instructions = ${tomlString(`Export ${HACKATHON_ENV_KEY} before starting VS Code or Codex.`)}`,
   ].join("\n");
 
   const body = compactBlankLines(stripped.lines.join("\n"));
@@ -109,7 +114,7 @@ export function applyRouterPlexConfig(source: string, options: CodexProviderOpti
   return { content, previousRootAssignments: stripped.previous };
 }
 
-export function removeRouterPlexConfig(source: string, previousRootAssignments: string[] = []): string {
+export function removeHackathonConfig(source: string, previousRootAssignments: string[] = []): string {
   const newline = source.includes("\r\n") ? "\r\n" : "\n";
   const normalized = source.replace(/\r\n/g, "\n");
   const cleanedLines = removeProviderTables(removeManagedBlock(normalized.split("\n")));

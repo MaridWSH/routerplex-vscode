@@ -7,10 +7,20 @@ export interface ExtensionRelease {
 
 const RELEASE_DOWNLOAD_PREFIX = "https://github.com/MaridWSH/routerplex-vscode/releases/download/";
 
+// Hackathon builds ship under their own tag so the public RouterPlex extension
+// keeps `releases/latest` to itself and never offers a participant build.
+export const HACKATHON_TAG_PREFIX = "hackathon-v";
+
 function stableVersionParts(value: string): [number, number, number] | undefined {
-  const match = value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/);
+  const match = value.trim().match(/^(\d+)\.(\d+)\.(\d+)$/);
   if (!match) return undefined;
   return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+export function hackathonVersion(tag: unknown): string | undefined {
+  if (typeof tag !== "string" || !tag.startsWith(HACKATHON_TAG_PREFIX)) return undefined;
+  const version = tag.slice(HACKATHON_TAG_PREFIX.length);
+  return stableVersionParts(version) ? version : undefined;
 }
 
 export function isNewerVersion(candidate: string, current: string): boolean {
@@ -26,27 +36,37 @@ export function isNewerVersion(candidate: string, current: string): boolean {
   return false;
 }
 
-export function parseExtensionRelease(value: unknown): ExtensionRelease {
-  if (!value || typeof value !== "object") throw new Error("GitHub returned an invalid release response.");
-  const release = value as {
-    tag_name?: unknown;
-    html_url?: unknown;
-    draft?: unknown;
-    prerelease?: unknown;
-    assets?: unknown;
-  };
-  if (release.draft === true || release.prerelease === true) {
-    throw new Error("GitHub returned a draft or prerelease instead of the latest stable release.");
+interface GitHubRelease {
+  tag_name?: unknown;
+  html_url?: unknown;
+  draft?: unknown;
+  assets?: unknown;
+}
+
+/**
+ * Picks the highest hackathon release from a releases listing. Prereleases are
+ * kept - every hackathon build is published as one - but drafts are not.
+ */
+export function parseHackathonRelease(value: unknown): ExtensionRelease {
+  if (!Array.isArray(value)) throw new Error("GitHub returned an invalid releases response.");
+
+  let best: { release: GitHubRelease; version: string } | undefined;
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const release = entry as GitHubRelease;
+    if (release.draft === true) continue;
+    const version = hackathonVersion(release.tag_name);
+    if (!version) continue;
+    if (!best || isNewerVersion(version, best.version)) best = { release, version };
   }
-  if (typeof release.tag_name !== "string" || !stableVersionParts(release.tag_name)) {
-    throw new Error("The latest RouterPlex release does not have a stable semantic version tag.");
-  }
+  if (!best) throw new Error("GitHub has no published hackathon release.");
+
+  const { release, version } = best;
   if (typeof release.html_url !== "string" || !release.html_url.startsWith("https://github.com/MaridWSH/")) {
-    throw new Error("The latest RouterPlex release URL is invalid.");
+    throw new Error("The hackathon release URL is invalid.");
   }
 
-  const version = release.tag_name.replace(/^v/, "");
-  const assetName = `routerplex-models-${version}.vsix`;
+  const assetName = `routerplex-hackathon-${version}.vsix`;
   const assets = Array.isArray(release.assets) ? release.assets : [];
   const asset = assets.find((candidate) => {
     if (!candidate || typeof candidate !== "object") return false;
@@ -55,11 +75,10 @@ export function parseExtensionRelease(value: unknown): ExtensionRelease {
 
   if (
     !asset ||
-    typeof asset.name !== "string" ||
     typeof asset.browser_download_url !== "string" ||
     !asset.browser_download_url.startsWith(RELEASE_DOWNLOAD_PREFIX)
   ) {
-    throw new Error(`The latest RouterPlex release does not include ${assetName}.`);
+    throw new Error(`The hackathon release does not include ${assetName}.`);
   }
 
   return {

@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
 
-import { isNewerVersion, parseExtensionRelease, type ExtensionRelease } from "./updateInfo.js";
+import { isNewerVersion, parseHackathonRelease, type ExtensionRelease } from "./updateInfo.js";
 
-const LATEST_RELEASE_URL = "https://api.github.com/repos/MaridWSH/routerplex-vscode/releases/latest";
-const LAST_UPDATE_CHECK_STATE_KEY = "routerplex.update.lastCheck";
-const INSTALLED_UPDATE_STATE_KEY = "routerplex.update.installedVersion";
+const LATEST_RELEASE_URL = "https://api.github.com/repos/MaridWSH/routerplex-vscode/releases?per_page=30";
+const LAST_UPDATE_CHECK_STATE_KEY = "routerplex.hackathon.update.lastCheck";
+const INSTALLED_UPDATE_STATE_KEY = "routerplex.hackathon.update.installedVersion";
 const DEFAULT_UPDATE_CHECK_INTERVAL_HOURS = 6;
 const STARTUP_CHECK_DELAY_MS = 15 * 1000;
 const MAX_VSIX_BYTES = 25 * 1024 * 1024;
@@ -17,7 +17,7 @@ export class ExtensionUpdateService implements vscode.Disposable {
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.configurationSubscription = vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("routerplex.autoUpdate") || event.affectsConfiguration("routerplex.updateCheckIntervalHours")) {
+      if (event.affectsConfiguration("routerplexHackathon.autoUpdate") || event.affectsConfiguration("routerplexHackathon.updateCheckIntervalHours")) {
         this.schedule(true);
       }
     });
@@ -57,7 +57,7 @@ export class ExtensionUpdateService implements vscode.Disposable {
   }
 
   private configuration(): vscode.WorkspaceConfiguration {
-    return vscode.workspace.getConfiguration("routerplex");
+    return vscode.workspace.getConfiguration("routerplexHackathon");
   }
 
   private updateIntervalMs(): number {
@@ -72,7 +72,7 @@ export class ExtensionUpdateService implements vscode.Disposable {
       const currentVersion = String(this.context.extension.packageJSON.version);
 
       if (!isNewerVersion(release.version, currentVersion)) {
-        if (interactive) await vscode.window.showInformationMessage(`RouterPlex Models ${currentVersion} is up to date.`);
+        if (interactive) await vscode.window.showInformationMessage(`RouterPlex Hackathon ${currentVersion} is up to date.`);
         return;
       }
 
@@ -84,7 +84,7 @@ export class ExtensionUpdateService implements vscode.Disposable {
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `Installing RouterPlex Models ${release.version}`,
+          title: `Installing RouterPlex Hackathon ${release.version}`,
         },
         () => this.downloadAndInstall(release),
       );
@@ -101,23 +101,23 @@ export class ExtensionUpdateService implements vscode.Disposable {
     const response = await fetch(LATEST_RELEASE_URL, {
       headers: {
         Accept: "application/vnd.github+json",
-        "User-Agent": `routerplex-vscode-extension/${currentVersion}`,
+        "User-Agent": `routerplex-hackathon-extension/${currentVersion}`,
         "X-GitHub-Api-Version": "2022-11-28",
       },
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) throw new Error(`GitHub update check returned HTTP ${response.status}.`);
-    return parseExtensionRelease(await response.json());
+    return parseHackathonRelease(await response.json());
   }
 
   private async downloadAndInstall(release: ExtensionRelease): Promise<void> {
     const response = await fetch(release.downloadUrl, { signal: AbortSignal.timeout(60000) });
-    if (!response.ok) throw new Error(`RouterPlex update download returned HTTP ${response.status}.`);
+    if (!response.ok) throw new Error(`Hackathon update download returned HTTP ${response.status}.`);
 
     const contentLength = Number(response.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_VSIX_BYTES) throw new Error("The RouterPlex update is unexpectedly large.");
+    if (contentLength > MAX_VSIX_BYTES) throw new Error("The hackathon update is unexpectedly large.");
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > MAX_VSIX_BYTES) throw new Error("The RouterPlex update is unexpectedly large.");
+    if (bytes.byteLength > MAX_VSIX_BYTES) throw new Error("The hackathon update is unexpectedly large.");
 
     const updateDirectory = vscode.Uri.joinPath(this.context.globalStorageUri, "updates");
     const vsixUri = vscode.Uri.joinPath(updateDirectory, release.assetName);
@@ -128,7 +128,7 @@ export class ExtensionUpdateService implements vscode.Disposable {
 
   private async showReloadMessage(release: ExtensionRelease): Promise<void> {
     const action = await vscode.window.showInformationMessage(
-      `RouterPlex Models ${release.version} is installed. Reload VS Code to use it.`,
+      `RouterPlex Hackathon ${release.version} is installed. Reload VS Code to use it.`,
       "Reload VS Code",
       "View Release",
     );

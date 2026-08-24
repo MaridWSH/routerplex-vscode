@@ -2,86 +2,51 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parse } from "smol-toml";
 
-import { applyRouterPlexConfig, removeRouterPlexConfig } from "./codexConfig.js";
+import { applyHackathonConfig, removeHackathonConfig } from "./codexConfig.js";
 
-const OPTIONS = {
-  model: "gpt-5.6-sol",
-  baseUrl: "https://api.routerplex.com/v1",
-};
+const options = { model: "mimo-v2.5-pro", baseUrl: "https://hackathon.routerplex.com/v1" };
 
-test("adds RouterPlex to an empty Codex configuration", () => {
-  const result = applyRouterPlexConfig("", OPTIONS);
-  const parsed = parse(result.content) as Record<string, unknown>;
+test("writes a valid provider table and root selection", () => {
+  const result = applyHackathonConfig("", options);
+  const parsed = parse(result.content) as Record<string, any>;
 
-  assert.equal(parsed.model_provider, "routerplex");
-  assert.equal(parsed.model, "gpt-5.6-sol");
-  assert.deepEqual(result.previousRootAssignments, []);
-  assert.match(result.content, /wire_api = "responses"/);
-  assert.match(result.content, /env_key = "ROUTERPLEX_API_KEY"/);
-  assert.doesNotMatch(result.content, /model_providers\.routerplex\.auth/);
+  assert.equal(parsed.model_provider, "routerplex-hackathon");
+  assert.equal(parsed.model, "mimo-v2.5-pro");
+  assert.equal(parsed.model_providers["routerplex-hackathon"].base_url, options.baseUrl);
+  assert.equal(parsed.model_providers["routerplex-hackathon"].wire_api, "chat");
+  assert.equal(parsed.model_providers["routerplex-hackathon"].env_key, "ROUTERPLEX_HACKATHON_API_KEY");
 });
 
-test("preserves unrelated config and captures displaced root model settings", () => {
+test("is idempotent and remembers the previous root selection once", () => {
+  const first = applyHackathonConfig('model = "o3"\nmodel_provider = "openai"\n', options);
+  assert.deepEqual(first.previousRootAssignments, ['model = "o3"', 'model_provider = "openai"']);
+
+  const second = applyHackathonConfig(first.content, options);
+  assert.equal((second.content.match(/RouterPlex Hackathon managed settings/g) ?? []).length, 2);
+  assert.equal((second.content.match(/\[model_providers\.routerplex-hackathon]/g) ?? []).length, 1);
+});
+
+test("leaves the public RouterPlex provider table alone", () => {
   const source = [
-    '# existing comment',
-    'model = "gpt-5.5"',
-    'model_provider = "openai"',
-    'approval_policy = "on-request"',
-    '',
-    '[desktop]',
-    'followUpQueueMode = "queue"',
-    '',
-  ].join("\n");
-
-  const result = applyRouterPlexConfig(source, OPTIONS);
-  assert.deepEqual(result.previousRootAssignments, ['model = "gpt-5.5"', 'model_provider = "openai"']);
-  assert.match(result.content, /approval_policy = "on-request"/);
-  assert.match(result.content, /\[desktop]/);
-  assert.equal((result.content.match(/^model_provider\s*=/gm) ?? []).length, 1);
-  assert.equal((result.content.match(/^model\s*=/gm) ?? []).length, 1);
-  parse(result.content);
-});
-
-test("reconfiguring replaces the managed provider without duplicates", () => {
-  const first = applyRouterPlexConfig("", OPTIONS).content;
-  const second = applyRouterPlexConfig(first, { ...OPTIONS, model: "claude-sonnet-5" }).content;
-
-  assert.equal((second.match(/\[model_providers\.routerplex]/g) ?? []).length, 1);
-  assert.equal((second.match(/env_key = "ROUTERPLEX_API_KEY"/g) ?? []).length, 1);
-  assert.match(second, /model = "claude-sonnet-5"/);
-  parse(second);
-});
-
-test("removal restores the previous model selection and leaves other tables", () => {
-  const original = ['model = "gpt-5.5"', 'model_provider = "openai"', '', '[desktop]', 'enabled = true', ''].join(
-    "\n",
-  );
-  const applied = applyRouterPlexConfig(original, OPTIONS);
-  const removed = removeRouterPlexConfig(applied.content, applied.previousRootAssignments);
-
-  assert.equal(removed, original);
-  assert.doesNotMatch(removed, /RouterPlex managed/);
-  assert.doesNotMatch(removed, /model_providers\.routerplex/);
-  parse(removed);
-});
-
-test("replaces a legacy command-backed provider with env_key", () => {
-  const legacy = [
-    'model_provider = "routerplex"',
-    'model = "gpt-5.6-sol"',
-    '',
-    '[model_providers.routerplex]',
+    "[model_providers.routerplex]",
     'name = "RouterPlex"',
     'base_url = "https://api.routerplex.com/v1"',
-    'wire_api = "responses"',
-    '',
-    '[model_providers.routerplex.auth]',
-    'command = "/tmp/routerplex-auth.sh"',
-    'args = []',
-    '',
+    "",
   ].join("\n");
-  const result = applyRouterPlexConfig(legacy, OPTIONS);
-  assert.match(result.content, /env_key = "ROUTERPLEX_API_KEY"/);
-  assert.doesNotMatch(result.content, /routerplex\.auth|command =/);
-  parse(result.content);
+  const applied = applyHackathonConfig(source, options);
+  assert.match(applied.content, /\[model_providers\.routerplex]/);
+
+  const removed = removeHackathonConfig(applied.content, applied.previousRootAssignments);
+  assert.match(removed, /\[model_providers\.routerplex]/);
+  assert.doesNotMatch(removed, /routerplex-hackathon/);
+});
+
+test("restores what it replaced when removed", () => {
+  const applied = applyHackathonConfig('model = "o3"\n[other]\nkey = 1\n', options);
+  const removed = removeHackathonConfig(applied.content, applied.previousRootAssignments);
+  const parsed = parse(removed) as Record<string, any>;
+
+  assert.equal(parsed.model, "o3");
+  assert.equal(parsed.other.key, 1);
+  assert.equal(parsed.model_providers, undefined);
 });

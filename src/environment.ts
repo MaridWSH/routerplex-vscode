@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
 
-import { ROUTERPLEX_CODEX_ENV_KEY } from "./constants.js";
+import { HACKATHON_ENV_KEY } from "./constants.js";
 import { applyManagedEnvironment, removeManagedEnvironment, type ShellSyntax } from "./environmentConfig.js";
 
 export interface EnvironmentExportResult {
@@ -28,7 +28,7 @@ function expandHome(value: string): string {
 }
 
 function detectedProfile(): { profilePath: string; syntax: ShellSyntax } {
-  const configured = vscode.workspace.getConfiguration("routerplex").get<string>("shellProfile", "").trim();
+  const configured = vscode.workspace.getConfiguration("routerplexHackathon").get<string>("shellProfile", "").trim();
   if (configured) {
     const profilePath = expandHome(configured);
     if (!path.isAbsolute(profilePath)) throw new Error("Shell Profile must be an absolute path.");
@@ -45,10 +45,10 @@ function detectedProfile(): { profilePath: string; syntax: ShellSyntax } {
 }
 
 function applyRuntimeEnvironment(context: vscode.ExtensionContext, apiKey: string): void {
-  process.env[ROUTERPLEX_CODEX_ENV_KEY] = apiKey;
+  process.env[HACKATHON_ENV_KEY] = apiKey;
   context.environmentVariableCollection.persistent = true;
-  context.environmentVariableCollection.description = "RouterPlex API key for Codex and integrated terminals";
-  context.environmentVariableCollection.replace(ROUTERPLEX_CODEX_ENV_KEY, apiKey, {
+  context.environmentVariableCollection.description = "Hackathon API key for Codex and integrated terminals";
+  context.environmentVariableCollection.replace(HACKATHON_ENV_KEY, apiKey, {
     applyAtProcessCreation: true,
     applyAtShellIntegration: true,
   });
@@ -56,10 +56,10 @@ function applyRuntimeEnvironment(context: vscode.ExtensionContext, apiKey: strin
 
 async function setWindowsUserEnvironment(apiKey: string | undefined): Promise<void> {
   const script = apiKey === undefined
-    ? `[Environment]::SetEnvironmentVariable(${JSON.stringify(ROUTERPLEX_CODEX_ENV_KEY)}, $null, "User")`
+    ? `[Environment]::SetEnvironmentVariable(${JSON.stringify(HACKATHON_ENV_KEY)}, $null, "User")`
     : [
         "$value = [Console]::In.ReadToEnd().Trim()",
-        `[Environment]::SetEnvironmentVariable(${JSON.stringify(ROUTERPLEX_CODEX_ENV_KEY)}, $value, "User")`,
+        `[Environment]::SetEnvironmentVariable(${JSON.stringify(HACKATHON_ENV_KEY)}, $value, "User")`,
       ].join("; ");
 
   await new Promise<void>((resolve, reject) => {
@@ -102,7 +102,7 @@ export async function persistCodexEnvironment(
   const syntax: ShellSyntax = profilePath.endsWith("config.fish") ? "fish" : "posix";
   const source = await readOptional(profilePath);
   await mkdir(path.dirname(profilePath), { recursive: true });
-  await writeFile(profilePath, applyManagedEnvironment(source, ROUTERPLEX_CODEX_ENV_KEY, apiKey, syntax), "utf8");
+  await writeFile(profilePath, applyManagedEnvironment(source, HACKATHON_ENV_KEY, apiKey, syntax), "utf8");
   return { description: profilePath, profilePath };
 }
 
@@ -111,9 +111,9 @@ export async function removeCodexEnvironment(
   profilePath: string | undefined,
   previousValue: string | null | undefined,
 ): Promise<void> {
-  context.environmentVariableCollection.delete(ROUTERPLEX_CODEX_ENV_KEY);
-  if (previousValue !== null && previousValue !== undefined) process.env[ROUTERPLEX_CODEX_ENV_KEY] = previousValue;
-  else delete process.env[ROUTERPLEX_CODEX_ENV_KEY];
+  context.environmentVariableCollection.delete(HACKATHON_ENV_KEY);
+  if (previousValue !== null && previousValue !== undefined) process.env[HACKATHON_ENV_KEY] = previousValue;
+  else delete process.env[HACKATHON_ENV_KEY];
 
   if (process.platform === "win32") {
     await setWindowsUserEnvironment(previousValue ?? undefined);

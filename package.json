@@ -1,15 +1,15 @@
 {
-  "name": "routerplex-models",
-  "displayName": "RouterPlex Models",
-  "description": "Use RouterPlex models in VS Code Chat and configure the Codex extension with one API key.",
-  "version": "0.1.4",
+  "name": "routerplex-hackathon",
+  "displayName": "RouterPlex Hackathon",
+  "description": "Join your team with one code, track credit, and configure VS Code Chat, Codex, OpenCode, Claude Code, and Claude Desktop.",
+  "version": "1.4.0",
   "publisher": "routerplex",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "https://github.com/MaridWSH/routerplex-vscode.git"
   },
-  "homepage": "https://github.com/MaridWSH/routerplex-vscode#readme",
+  "homepage": "https://github.com/MaridWSH/routerplex-vscode/tree/hackathon#readme",
   "bugs": {
     "url": "https://github.com/MaridWSH/routerplex-vscode/issues"
   },
@@ -23,10 +23,11 @@
   ],
   "keywords": [
     "routerplex",
+    "hackathon",
     "codex",
-    "openai",
+    "opencode",
     "claude",
-    "gemini",
+    "openai",
     "language models"
   ],
   "activationEvents": [
@@ -44,24 +45,24 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "routerplex",
-        "displayName": "RouterPlex",
-        "managementCommand": "routerplex.openPanel"
+        "vendor": "routerplex-hackathon",
+        "displayName": "RouterPlex Hackathon",
+        "managementCommand": "routerplexHackathon.openPanel"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "routerplex",
-          "title": "RouterPlex",
+          "id": "routerplexHackathon",
+          "title": "Hackathon",
           "icon": "media/routerplex.svg"
         }
       ]
     },
     "views": {
-      "routerplex": [
+      "routerplexHackathon": [
         {
-          "id": "routerplex.controlPanel",
+          "id": "routerplexHackathon.controlPanel",
           "name": "Control Panel",
           "type": "webview"
         }
@@ -69,131 +70,161 @@
     },
     "commands": [
       {
-        "command": "routerplex.openPanel",
-        "title": "RouterPlex: Open Control Panel",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.openPanel",
+        "title": "Hackathon: Open Control Panel",
+        "category": "Hackathon"
       },
       {
-        "command": "routerplex.setup",
-        "title": "RouterPlex: Set Up VS Code and Codex",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.setup",
+        "title": "Hackathon: Set Up VS Code and Codex",
+        "category": "Hackathon"
       },
       {
-        "command": "routerplex.manageConnection",
-        "title": "RouterPlex: Manage Connection",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.join",
+        "title": "Hackathon: Join With a Team Code",
+        "category": "Hackathon",
+        "icon": "$(rocket)"
       },
       {
-        "command": "routerplex.configureApiKey",
-        "title": "RouterPlex: Configure API Key",
-        "category": "RouterPlex",
-        "icon": "$(key)"
+        "command": "routerplexHackathon.manageConnection",
+        "title": "Hackathon: Manage Connection",
+        "category": "Hackathon"
       },
       {
-        "command": "routerplex.configureCodex",
-        "title": "RouterPlex: Configure Codex",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.configureCodex",
+        "title": "Hackathon: Configure Codex",
+        "category": "Hackathon"
       },
       {
-        "command": "routerplex.testConnection",
-        "title": "RouterPlex: Test Connection",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.configureOpenCode",
+        "title": "Hackathon: Configure OpenCode",
+        "category": "Hackathon"
       },
       {
-        "command": "routerplex.refreshModels",
-        "title": "RouterPlex: Refresh Models",
-        "category": "RouterPlex",
+        "command": "routerplexHackathon.configureClaude",
+        "title": "Hackathon: Configure Claude Desktop and Claude Code",
+        "category": "Hackathon"
+      },
+      {
+        "command": "routerplexHackathon.testConnection",
+        "title": "Hackathon: Test Connection",
+        "category": "Hackathon"
+      },
+      {
+        "command": "routerplexHackathon.refreshModels",
+        "title": "Hackathon: Refresh Models",
+        "category": "Hackathon",
         "icon": "$(refresh)"
       },
       {
-        "command": "routerplex.checkForUpdates",
-        "title": "RouterPlex: Check for Updates",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.refresh",
+        "title": "Hackathon: Refresh Credit",
+        "category": "Hackathon",
+        "icon": "$(sync)"
       },
       {
-        "command": "routerplex.openCodexConfig",
-        "title": "RouterPlex: Open Codex Configuration",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.copyKey",
+        "title": "Hackathon: Copy API Key",
+        "category": "Hackathon",
+        "icon": "$(key)"
       },
       {
-        "command": "routerplex.openSettings",
-        "title": "RouterPlex: Open Settings",
-        "category": "RouterPlex",
+        "command": "routerplexHackathon.openChat",
+        "title": "Hackathon: Open the Chat View",
+        "category": "Hackathon"
+      },
+      {
+        "command": "routerplexHackathon.checkForUpdates",
+        "title": "Hackathon: Check for Updates",
+        "category": "Hackathon"
+      },
+      {
+        "command": "routerplexHackathon.openCodexConfig",
+        "title": "Hackathon: Open Codex Configuration",
+        "category": "Hackathon"
+      },
+      {
+        "command": "routerplexHackathon.openSettings",
+        "title": "Hackathon: Open Settings",
+        "category": "Hackathon",
         "icon": "$(settings)"
       },
       {
-        "command": "routerplex.removeConfiguration",
-        "title": "RouterPlex: Remove Configuration",
-        "category": "RouterPlex"
+        "command": "routerplexHackathon.signOut",
+        "title": "Hackathon: Sign Out",
+        "category": "Hackathon"
+      },
+      {
+        "command": "routerplexHackathon.configureCodexModel",
+        "title": "Hackathon: Use Model for Codex",
+        "category": "Hackathon"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "routerplexHackathon.configureCodexModel",
+          "when": "false"
+        }
+      ],
       "view/title": [
         {
-          "command": "routerplex.configureApiKey",
-          "when": "view == routerplex.controlPanel",
+          "command": "routerplexHackathon.refresh",
+          "when": "view == routerplexHackathon.controlPanel",
           "group": "navigation@1"
         },
         {
-          "command": "routerplex.refreshModels",
-          "when": "view == routerplex.controlPanel",
+          "command": "routerplexHackathon.copyKey",
+          "when": "view == routerplexHackathon.controlPanel",
           "group": "navigation@2"
         },
         {
-          "command": "routerplex.openSettings",
-          "when": "view == routerplex.controlPanel",
+          "command": "routerplexHackathon.openSettings",
+          "when": "view == routerplexHackathon.controlPanel",
           "group": "navigation@3"
         }
       ]
     },
     "configuration": {
-      "title": "RouterPlex",
+      "title": "RouterPlex Hackathon",
       "properties": {
-        "routerplex.apiBaseUrl": {
+        "routerplexHackathon.consoleUrl": {
           "type": "string",
-          "default": "https://api.routerplex.com/v1",
+          "default": "https://hackathon.routerplex.com",
           "scope": "machine",
-          "description": "RouterPlex API base URL used for inference and Codex configuration."
+          "description": "Hackathon console that issues team keys and reports credit."
         },
-        "routerplex.catalogUrl": {
+        "routerplexHackathon.catalogUrl": {
           "type": "string",
           "default": "https://routerplex.com/api/models",
           "scope": "machine",
-          "description": "Public RouterPlex model catalog URL."
+          "description": "Public model catalog used to describe the hackathon models. Only models your team was granted are ever shown."
         },
-        "routerplex.codexHome": {
+        "routerplexHackathon.codexHome": {
           "type": "string",
           "default": "",
           "scope": "machine",
           "description": "Optional Codex home directory. Leave empty to use CODEX_HOME or ~/.codex."
         },
-        "routerplex.shellProfile": {
+        "routerplexHackathon.shellProfile": {
           "type": "string",
           "default": "",
           "scope": "machine",
-          "description": "Optional shell profile used to export ROUTERPLEX_API_KEY. Leave empty to detect bash, zsh, fish, or ~/.profile."
+          "description": "Optional shell profile used to export ROUTERPLEX_HACKATHON_API_KEY. Leave empty to detect bash, zsh, fish, or ~/.profile."
         },
-        "routerplex.modelRefreshIntervalMinutes": {
-          "type": "number",
-          "default": 5,
-          "minimum": 1,
-          "maximum": 1440,
-          "scope": "machine",
-          "description": "Minutes between automatic RouterPlex model catalog refreshes."
-        },
-        "routerplex.autoUpdate": {
+        "routerplexHackathon.autoUpdate": {
           "type": "boolean",
           "default": true,
           "scope": "machine",
-          "description": "Automatically install newer RouterPlex Models VSIX releases from GitHub and prompt to reload VS Code."
+          "description": "Automatically install newer hackathon builds from GitHub and prompt to reload VS Code."
         },
-        "routerplex.updateCheckIntervalHours": {
+        "routerplexHackathon.updateCheckIntervalHours": {
           "type": "number",
           "default": 6,
           "minimum": 1,
           "maximum": 168,
           "scope": "machine",
-          "description": "Hours between automatic checks for RouterPlex Models GitHub releases."
+          "description": "Hours between automatic checks for new hackathon releases."
         }
       }
     }
@@ -201,12 +232,14 @@
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "compile": "node scripts/esbuild.mjs",
+    "build": "node scripts/esbuild.mjs",
     "watch": "node scripts/esbuild.mjs --watch",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/**/*.test.ts",
     "package": "npm run compile && vsce package --no-dependencies"
   },
   "dependencies": {
+    "jsonc-parser": "^3.3.1",
     "smol-toml": "^1.7.1"
   },
   "devDependencies": {

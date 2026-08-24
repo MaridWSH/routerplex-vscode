@@ -1,12 +1,12 @@
-import type { RouterPlexModel } from "./models.js";
+import type { HackathonModel } from "./models.js";
 
-export class RouterPlexApiError extends Error {
+export class GatewayError extends Error {
   constructor(
     message: string,
     readonly status: number,
   ) {
     super(message);
-    this.name = "RouterPlexApiError";
+    this.name = "GatewayError";
   }
 }
 
@@ -28,15 +28,17 @@ export async function validateApiKey(
   });
 
   if (!response.ok) {
-    throw new RouterPlexApiError(connectionErrorMessage(response.status), response.status);
+    throw new GatewayError(connectionErrorMessage(response.status), response.status);
   }
 }
 
 export function connectionErrorMessage(status: number): string {
-  if (status === 401 || status === 403) return "The RouterPlex API key is invalid or has been revoked.";
-  if (status === 402) return "The RouterPlex account needs available credit.";
-  if (status === 429) return "RouterPlex rate-limited the connection test. Try again shortly.";
-  return `RouterPlex returned HTTP ${status}.`;
+  if (status === 401 || status === 403) {
+    return "This key is no longer valid. Your seat may have moved to another team - ask an organiser.";
+  }
+  if (status === 402) return "The team budget is spent. Ask an organiser for a top up.";
+  if (status === 429) return "The gateway is rate limiting. Try again in a moment.";
+  return `The hackathon gateway returned HTTP ${status}.`;
 }
 
 export interface OpenAiToolCall {
@@ -69,9 +71,8 @@ export interface OpenAiChatRequest {
     };
   }>;
   tool_choice?: "auto" | "required";
-  reasoning_effort?: string;
 }
 
-export interface ProviderModel extends RouterPlexModel {
+export interface ProviderModel extends HackathonModel {
   maxOutputTokens: number;
 }

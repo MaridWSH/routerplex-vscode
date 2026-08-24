@@ -1,10 +1,10 @@
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
 
 import { normalizeBaseUrl } from "./api.js";
-import { applyRouterPlexConfig, removeRouterPlexConfig } from "./codexConfig.js";
+import { applyHackathonConfig, removeHackathonConfig } from "./codexConfig.js";
 import {
   CODEX_ENV_PROFILE_STATE_KEY,
   CODEX_LAST_BACKUP_STATE_KEY,
@@ -12,6 +12,7 @@ import {
   CODEX_MANAGED_STATE_KEY,
   CODEX_PREVIOUS_ENV_STATE_KEY,
   CODEX_PREVIOUS_ROOT_STATE_KEY,
+  HACKATHON_ENV_KEY,
 } from "./constants.js";
 import { persistCodexEnvironment, removeCodexEnvironment } from "./environment.js";
 
@@ -33,7 +34,7 @@ function expandHome(value: string): string {
 }
 
 export function resolveCodexHome(): string {
-  const configured = vscode.workspace.getConfiguration("routerplex").get<string>("codexHome", "").trim();
+  const configured = vscode.workspace.getConfiguration("routerplexHackathon").get<string>("codexHome", "").trim();
   const candidate = expandHome(configured || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
   if (!path.isAbsolute(candidate)) {
     throw new Error("Codex Home must be an absolute path.");
@@ -46,7 +47,7 @@ export function codexConfigPath(): string {
 }
 
 async function backupConfig(context: vscode.ExtensionContext, source: string): Promise<string> {
-  const backupDirectory = path.join(resolveCodexHome(), "backups", "routerplex");
+  const backupDirectory = path.join(resolveCodexHome(), "backups", "routerplex-hackathon");
   await mkdir(backupDirectory, { recursive: true, mode: 0o700 });
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = path.join(backupDirectory, `config-${timestamp}.toml`);
@@ -71,29 +72,26 @@ export async function configureCodex(
   const configPath = codexConfigPath();
   const source = await readOptional(configPath);
   const backupPath = await backupConfig(context, source);
-  const patch = applyRouterPlexConfig(source, {
-    model,
-    baseUrl: normalizeBaseUrl(baseUrl),
-  });
+  const patch = applyHackathonConfig(source, { model, baseUrl: normalizeBaseUrl(baseUrl) });
 
   const alreadyManaged = context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false);
   if (!alreadyManaged) {
     await context.globalState.update(CODEX_PREVIOUS_ROOT_STATE_KEY, patch.previousRootAssignments);
   }
   if (context.globalState.get(CODEX_PREVIOUS_ENV_STATE_KEY) === undefined) {
-    await context.globalState.update(CODEX_PREVIOUS_ENV_STATE_KEY, process.env.ROUTERPLEX_API_KEY ?? null);
+    await context.globalState.update(CODEX_PREVIOUS_ENV_STATE_KEY, process.env[HACKATHON_ENV_KEY] ?? null);
   }
 
   const existingProfile = context.globalState.get<string>(CODEX_ENV_PROFILE_STATE_KEY);
   const environment = await persistCodexEnvironment(context, apiKey, existingProfile);
   await writeConfig(configPath, patch.content);
-  await cleanupLegacyCredentialHelper(context);
   await context.globalState.update(CODEX_MANAGED_STATE_KEY, true);
   await context.globalState.update(CODEX_LAST_MODEL_STATE_KEY, model);
   await context.globalState.update(CODEX_ENV_PROFILE_STATE_KEY, environment.profilePath);
   return { configPath, backupPath };
 }
 
+/** Keeps the exported key in step when a participant re-claims or moves team. */
 export async function updateCodexEnvironment(context: vscode.ExtensionContext, apiKey: string): Promise<void> {
   if (!context.globalState.get<boolean>(CODEX_MANAGED_STATE_KEY, false)) return;
   const existingProfile = context.globalState.get<string>(CODEX_ENV_PROFILE_STATE_KEY);
@@ -110,29 +108,18 @@ export async function removeCodexConfiguration(
   if (source) {
     backupPath = await backupConfig(context, source);
     const previous = context.globalState.get<string[]>(CODEX_PREVIOUS_ROOT_STATE_KEY, []);
-    await writeConfig(configPath, removeRouterPlexConfig(source, previous));
+    await writeConfig(configPath, removeHackathonConfig(source, previous));
   }
 
   const profilePath = context.globalState.get<string>(CODEX_ENV_PROFILE_STATE_KEY);
   const previousEnvironment = context.globalState.get<string | null>(CODEX_PREVIOUS_ENV_STATE_KEY);
   await removeCodexEnvironment(context, profilePath, previousEnvironment);
-  await cleanupLegacyCredentialHelper(context);
   await context.globalState.update(CODEX_MANAGED_STATE_KEY, false);
   await context.globalState.update(CODEX_PREVIOUS_ROOT_STATE_KEY, undefined);
   await context.globalState.update(CODEX_LAST_MODEL_STATE_KEY, undefined);
   await context.globalState.update(CODEX_ENV_PROFILE_STATE_KEY, undefined);
   await context.globalState.update(CODEX_PREVIOUS_ENV_STATE_KEY, undefined);
   return { configPath, ...(backupPath ? { backupPath } : {}) };
-}
-
-async function cleanupLegacyCredentialHelper(context: vscode.ExtensionContext): Promise<void> {
-  if (context.globalStorageUri.scheme !== "file") return;
-  const storagePath = path.join(context.globalStorageUri.fsPath, "codex-auth");
-  await Promise.all(
-    ["routerplex.key", "routerplex-auth.sh", "routerplex-auth.ps1"].map((file) =>
-      rm(path.join(storagePath, file), { force: true }),
-    ),
-  );
 }
 
 export async function openCodexConfiguration(): Promise<void> {
