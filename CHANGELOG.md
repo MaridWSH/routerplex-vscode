@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.2
+
+- Fixed the extension failing to load at all: the bundler resolved jsonc-parser
+  to its UMD build, whose internal `require("./impl/format")` cannot be rewritten
+  and is not shipped in the VSIX, so VS Code threw MODULE_NOT_FOUND on startup
+  and the Hackathon control panel spun forever. The build now uses the ESM entry
+  point and refuses to finish unless the bundle loads against a stub host.
+
 ## 1.4.1
 
 - Registered control-panel commands before optional editor integrations so
