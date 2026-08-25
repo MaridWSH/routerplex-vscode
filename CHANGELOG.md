@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.4
+
+- The control panel now follows a team rename. Organisers can rename a team in
+  the console after keys have gone out, and the panel picks the new name up on
+  its next credit refresh instead of showing the old one until a rejoin.
+
 ## 1.4.3
 
 - Fixed Configure OpenCode writing a configuration OpenCode rejects. Each model

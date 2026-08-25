@@ -2,7 +2,7 @@
   "name": "routerplex-hackathon",
   "displayName": "RouterPlex Hackathon",
   "description": "Join your team with one code, track credit, and configure VS Code Chat, Codex, OpenCode, Claude Code, and Claude Desktop.",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "publisher": "routerplex",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {

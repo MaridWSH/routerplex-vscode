@@ -75,3 +75,15 @@ test("OpenCode and Claude background updates require explicit opt-in", async () 
     /get<boolean>\(CLAUDE_MANAGED_STATE_KEY, false\)[\s\S]*updateClaudeConfiguration/,
   );
 });
+
+test("the panel adopts a team name the organiser changed", async () => {
+  // Renaming a team in the console must reach a participant who already
+  // joined, without asking them to rejoin.
+  const [sidebar, session] = await Promise.all([
+    readFile(path.resolve("src/sidebar.ts"), "utf8"),
+    readFile(path.resolve("src/session.ts"), "utf8"),
+  ]);
+
+  assert.match(sidebar, /fetchCredit\([\s\S]*?noteTeamName\(this\.lastCredit\.team\.name\)/);
+  assert.match(session, /async noteTeamName\([\s\S]*?session\.teamName === name\) return;/);
+});

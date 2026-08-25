@@ -152,6 +152,13 @@ export class SessionStore implements ApiKeySource {
   }
 
 
+  /** The organiser can rename a team after its members have claimed their keys. */
+  async noteTeamName(name: string | undefined): Promise<void> {
+    const session = await this.get();
+    if (!session || !name || session.teamName === name) return;
+    await this.set({ ...session, teamName: name });
+  }
+
   /** The organiser can deal or change a team's idea after people have joined. */
   async noteIdea(idea: ChallengeIdea | null | undefined): Promise<void> {
     const session = await this.get();

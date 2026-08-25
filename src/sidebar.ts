@@ -140,6 +140,7 @@ export class HackathonPanelProvider implements vscode.WebviewViewProvider, vscod
     try {
       this.lastCredit = await fetchCredit(session.consoleUrl, session.apiKey);
       await this.sessions.noteIdea(this.lastCredit.team.idea);
+      await this.sessions.noteTeamName(this.lastCredit.team.name);
       this.creditError = "";
       this.onCredit(this.lastCredit);
     } catch (error) {
