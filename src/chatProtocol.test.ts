@@ -60,3 +60,43 @@ test("accumulates streamed tool call arguments", () => {
     { callId: "call-1", name: "read_file", input: { path: "README.md" } },
   ]);
 });
+
+test("sends an image attachment as an image_url content part", () => {
+  const messages = toOpenAiMessages([
+    {
+      role: "user",
+      content: [
+        { kind: "text", value: "What is in this screenshot?" },
+        { kind: "image", mimeType: "image/png", base64: "aGVsbG8=" },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(messages, [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "What is in this screenshot?" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,aGVsbG8=" } },
+      ],
+    },
+  ]);
+});
+
+test("sends an image with no accompanying text", () => {
+  const messages = toOpenAiMessages([
+    { role: "user", content: [{ kind: "image", mimeType: "image/jpeg", base64: "Zm9v" }] },
+  ]);
+
+  assert.deepEqual(messages, [
+    {
+      role: "user",
+      content: [{ type: "image_url", image_url: { url: "data:image/jpeg;base64,Zm9v" } }],
+    },
+  ]);
+});
+
+test("keeps plain text messages on the string content form", () => {
+  const messages = toOpenAiMessages([{ role: "user", content: [{ kind: "text", value: "no images here" }] }]);
+  assert.deepEqual(messages, [{ role: "user", content: "no images here" }]);
+});

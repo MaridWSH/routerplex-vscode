@@ -1,7 +1,8 @@
-import type { OpenAiMessage } from "./api.js";
+import type { OpenAiContentPart, OpenAiMessage } from "./api.js";
 
 export type InternalChatPart =
   | { kind: "text"; value: string }
+  | { kind: "image"; mimeType: string; base64: string }
   | { kind: "tool-call"; callId: string; name: string; input: object }
   | { kind: "tool-result"; callId: string; value: string };
 
@@ -40,7 +41,19 @@ export function toOpenAiMessages(messages: InternalChatMessage[]): OpenAiMessage
     }
 
     const text = joinText(message.content);
-    if (text) {
+    const images = message.content.filter(
+      (part): part is Extract<InternalChatPart, { kind: "image" }> => part.kind === "image",
+    );
+    if (images.length) {
+      // Chat Completions only accepts images through the array content form, so
+      // any text on the same turn has to travel as a part alongside them.
+      const parts: OpenAiContentPart[] = [];
+      if (text) parts.push({ type: "text", text });
+      for (const image of images) {
+        parts.push({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.base64}` } });
+      }
+      result.push({ role: "user", content: parts, ...(message.name ? { name: message.name } : {}) });
+    } else if (text) {
       result.push({ role: "user", content: text, ...(message.name ? { name: message.name } : {}) });
     }
     for (const part of message.content) {
@@ -48,7 +61,7 @@ export function toOpenAiMessages(messages: InternalChatMessage[]): OpenAiMessage
         result.push({ role: "tool", content: part.value, tool_call_id: part.callId });
       }
     }
-    if (!text && !message.content.some((part) => part.kind === "tool-result")) {
+    if (!text && !images.length && !message.content.some((part) => part.kind === "tool-result")) {
       result.push({ role: "user", content: "", ...(message.name ? { name: message.name } : {}) });
     }
   }

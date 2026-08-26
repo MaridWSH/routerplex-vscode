@@ -134,7 +134,7 @@ export class HackathonModelProvider
       tooltip: `${modelPriceDetail(model)}. Billed to ${session.teamName}.`,
       detail: session.teamName,
       capabilities: {
-        imageInput: false,
+        imageInput: model.vision,
         toolCalling: true,
       },
       hackathonModel: model,
@@ -229,6 +229,15 @@ function toInternalMessage(message: vscode.LanguageModelChatRequestMessage): Int
         .map((item) => (item instanceof vscode.LanguageModelTextPart ? item.value : JSON.stringify(item)))
         .join("\n");
       content.push({ kind: "tool-result", callId: part.callId, value });
+    } else {
+      const image = asImagePart(part);
+      if (image) {
+        content.push({
+          kind: "image",
+          mimeType: image.mimeType,
+          base64: Buffer.from(image.data).toString("base64"),
+        });
+      }
     }
   }
   return {
@@ -236,6 +245,17 @@ function toInternalMessage(message: vscode.LanguageModelChatRequestMessage): Int
     ...(message.name ? { name: message.name } : {}),
     content,
   };
+}
+
+// Chat attachments arrive as LanguageModelDataPart. Duck-typing rather than an
+// instanceof keeps this working across the VS Code versions in the room, and
+// drops non-image data (a pasted text file, say) that the models cannot read.
+function asImagePart(part: unknown): { mimeType: string; data: Uint8Array } | undefined {
+  const candidate = part as { mimeType?: unknown; data?: unknown } | null;
+  if (!candidate || typeof candidate.mimeType !== "string") return undefined;
+  if (!candidate.mimeType.startsWith("image/")) return undefined;
+  if (!(candidate.data instanceof Uint8Array)) return undefined;
+  return { mimeType: candidate.mimeType, data: candidate.data };
 }
 
 async function gatewayError(response: Response): Promise<Error> {

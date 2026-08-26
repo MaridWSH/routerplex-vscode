@@ -50,9 +50,13 @@ export interface OpenAiToolCall {
   };
 }
 
+export type OpenAiContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export interface OpenAiMessage {
   role: "user" | "assistant" | "tool";
-  content: string | null;
+  content: string | OpenAiContentPart[] | null;
   name?: string;
   tool_call_id?: string;
   tool_calls?: OpenAiToolCall[];

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.5
+
+- Image attachments now work in chat. `imageInput` follows each model's own
+  vision flag instead of being off for every model, and an attached image is
+  sent as an `image_url` content part. `gpt-5.6-luna` is the only hackathon
+  model with vision, so it is the only one that offers the attach button.
+
 ## 1.4.4
 
 - The control panel now follows a team rename. Organisers can rename a team in
